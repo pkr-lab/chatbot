@@ -12,6 +12,96 @@ Das Image baut Frontend und Backend in getrennten Stufen und enthält zur Laufze
 
 Update: `git pull`, dann `docker compose up -d --build`. Die Daten bleiben im Volume erhalten.
 
+## Betrieb ohne Docker (systemd)
+
+Die App ist ein einzelner Node-Prozess und braucht kein Docker. Voraussetzung ist Node.js 22 oder neuer.
+
+Einrichten (als root):
+
+```bash
+useradd --system --home /opt/plaudi --shell /usr/sbin/nologin plaudi
+git clone <repo-url> /opt/plaudi
+cd /opt/plaudi
+npm run install:all
+npm run build
+mkdir -p /var/lib/plaudi /etc/plaudi
+chown -R plaudi:plaudi /var/lib/plaudi
+cp .env.example /etc/plaudi/plaudi.env
+chown root:plaudi /etc/plaudi/plaudi.env
+chmod 640 /etc/plaudi/plaudi.env
+```
+
+In `/etc/plaudi/plaudi.env` die Werte eintragen. In dieser Datei stehen die Zeilen ohne Anführungszeichen und ohne `export`. Die Pfade setzt die Unit.
+
+Unit `/etc/systemd/system/plaudi.service`:
+
+```ini
+[Unit]
+Description=Plaudi
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=plaudi
+Group=plaudi
+WorkingDirectory=/opt/plaudi
+EnvironmentFile=/etc/plaudi/plaudi.env
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=DATA_DIR=/var/lib/plaudi
+Environment=PUBLIC_DIR=/opt/plaudi/frontend/dist
+ExecStart=/usr/bin/node /opt/plaudi/backend/dist/index.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+SystemCallArchitectures=native
+ReadWritePaths=/var/lib/plaudi
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Starten und prüfen:
+
+```bash
+systemctl daemon-reload
+systemctl enable --now plaudi
+systemctl status plaudi
+journalctl -u plaudi -f
+curl http://127.0.0.1:3000/api/health
+```
+
+Update:
+
+```bash
+cd /opt/plaudi
+git pull
+npm run install:all
+npm run build
+systemctl restart plaudi
+```
+
+Hinweise:
+
+- Der Pfad zu `node` kann abweichen (`which node`). Bei Installation über nvm den vollen Pfad eintragen oder Node systemweit installieren.
+- Die Datenbank liegt in `/var/lib/plaudi`. Backup: Dienst kurz stoppen und den Ordner kopieren, oder die Datei `chatbot.sqlite` mit `sqlite3 chatbot.sqlite ".backup backup.sqlite"` sichern.
+- `MemoryMax=512M` ist großzügig, der Dienst braucht im Betrieb etwa 100 bis 150 MB.
+- Der Dienst lauscht auf Port 3000. Für den Zugriff aus dem Internet wie im Abschnitt Reverse Proxy beschrieben einen Proxy mit HTTPS davorsetzen und den Port nur lokal erreichbar lassen.
+- Nur eine Instanz betreiben. Sperren, Limits und laufende Antworten werden nicht zwischen Instanzen geteilt.
+
 ## Umgebungsvariablen
 
 | Variable | Standard | Bedeutung |
