@@ -1577,3 +1577,76 @@ p {
 .memory-chip.static {
   cursor: default;
 }
+
+.password-box {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.password-box:focus-within {
+  outline: 2px solid var(--accent);
+}
+
+.password-box input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  outline: none;
+}
+
+.login label > span:first-child,
+.pw-form label > span:first-child {
+  font-size: 14px;
+}
+
+.pw-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 360px;
+}
+
+.pw-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pw-form .password-box {
+  background: var(--bg);
+}
+
+.flag {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.flag.bad {
+  color: var(--danger);
+}
+
+.user-list li {
+  flex-wrap: wrap;
+}
+
+.link-box {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+
+.link-box input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: 12px;
+}

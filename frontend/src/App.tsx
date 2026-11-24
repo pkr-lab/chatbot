@@ -4,6 +4,7 @@ import { ChatView } from "./components/ChatView";
 import { Composer } from "./components/Composer";
 import { Icon } from "./components/Icon";
 import { Login } from "./components/Login";
+import { ResetPassword } from "./components/ResetPassword";
 import { Logo } from "./components/Logo";
 import { Sidebar } from "./components/Sidebar";
 import { useChatApp } from "./hooks/useChatApp";
@@ -139,6 +140,11 @@ const Shell = ({ initial, onLoggedOut }: ShellProps) => {
 type AuthState = { kind: "loading" } | { kind: "login" } | { kind: "error" } | { kind: "ready"; data: Bootstrap };
 
 export const App = () => {
+  if (window.location.pathname.startsWith("/reset")) return <ResetPassword />;
+  return <Main />;
+};
+
+const Main = () => {
   const [state, setState] = useState<AuthState>({ kind: "loading" });
 
   const load = useCallback(() => {

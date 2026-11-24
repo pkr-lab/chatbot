@@ -18,8 +18,11 @@ Alle Pfade liegen unter `/api`. Anfragen und Antworten sind JSON, Fehler haben d
 | Methode | Pfad | Beschreibung |
 | --- | --- | --- |
 | GET | `/api/auth/me` | `{ authenticated, user? }` |
-| POST | `/api/auth/request` | Body `{ email }`. Antwortet immer `202`, egal ob die Adresse freigeschaltet ist. Nur für freigeschaltete Adressen wird ein Code gemailt |
-| POST | `/api/auth/verify` | Body `{ email, code }`. Bei Erfolg wird das Cookie gesetzt, sonst `401` mit immer gleicher Meldung |
+| POST | `/api/auth/login` | `{ email, password }`. Bei Erfolg `{ step: "code", challenge, ttlMinutes }` und Code per Mail, noch keine Sitzung. Falsch: `401` mit verbleibenden Versuchen, gesperrt: `423` mit `lockedUntil` |
+| POST | `/api/auth/verify` | `{ email, code, challenge }`. Bei Erfolg Cookie, sonst `401` oder `423` |
+| POST | `/api/auth/forgot` | `{ email }`, antwortet immer `202`. Nur für bekannte Adressen geht ein Link raus |
+| POST | `/api/auth/reset` | `{ token, password }`. Setzt das Passwort, beendet alle Sitzungen, hebt die Sperre auf |
+| POST | `/api/auth/password` | Angemeldet: `{ current, next }`. Beendet alle anderen Sitzungen, nach 3 falschen Eingaben `423` |
 | POST | `/api/auth/logout` | Beendet die Sitzung serverseitig und löscht das Cookie |
 | POST | `/api/auth/logout-all` | Beendet alle Sitzungen des Benutzers |
 
@@ -30,6 +33,9 @@ Alle Pfade liegen unter `/api`. Anfragen und Antworten sind JSON, Fehler haben d
 | GET | `/api/admin/users` | Liste der freigeschalteten Benutzer |
 | POST | `/api/admin/users` | `{ email, role? }`, `201`, bei vorhandener Adresse `409` |
 | PATCH | `/api/admin/users/:id` | `{ role }`, der letzte Administrator kann nicht herabgestuft werden |
+| POST | `/api/admin/users/:id/reset-password` | Altes Passwort ungültig, Sitzungen beendet, Sperre aufgehoben, Link per Mail. Antwort enthält `link` |
+| POST | `/api/admin/users/:id/unlock` | Hebt die Sperre auf |
+| POST | `/api/admin/users/:id/invite` | Sendet eine Einladung zum Festlegen des Passworts |
 | DELETE | `/api/admin/users/:id` | Entfernt Benutzer, Sitzungen und alle Chats. Nicht sich selbst, nicht den letzten Administrator |
 
 ## Chats

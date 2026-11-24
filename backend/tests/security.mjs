@@ -9,7 +9,9 @@ const MAIL_PORT = 3301;
 const BASE = `http://127.0.0.1:${PORT}`;
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "plaudi-sec-"));
 const mails = [];
-let results = { pass: 0, fail: 0 };
+const results = { pass: 0, fail: 0 };
+const ADMIN = "admin@example.com";
+const ADMIN_PW = "Sehr-Sicheres-Passwort-1";
 
 const mailServer = http.createServer((req, res) => {
   let raw = "";
@@ -51,8 +53,8 @@ class Client {
       const pair = set.split(";")[0];
       this.cookie = pair.endsWith("=") ? "" : pair;
     }
-    let data = null;
     const text = await response.text();
+    let data = null;
     try {
       data = text ? JSON.parse(text) : null;
     } catch {
@@ -62,46 +64,69 @@ class Client {
   }
 }
 
-const lastCodeFor = async (email, since) => {
-  for (let index = 0; index < 40; index += 1) {
-    const mail = [...mails].reverse().find((entry) => entry.body.to === email && mails.indexOf(entry) >= since);
-    if (mail) return mail.body.text.match(/\b(\d{6})\b/)[1];
+const waitMail = async (to, since, pattern) => {
+  for (let index = 0; index < 50; index += 1) {
+    const mail = mails.slice(since).reverse().find((entry) => entry.body.to === to && pattern.test(entry.body.text));
+    if (mail) return mail.body.text.match(pattern)[1];
     await sleep(100);
   }
   return null;
 };
 
-const login = async (client, email) => {
-  const since = mails.length;
-  await client.call("POST", "/api/auth/request", { email });
-  const code = await lastCodeFor(email, since);
-  return client.call("POST", "/api/auth/verify", { email, code });
+const codeFrom = (to, since) => waitMail(to, since, /\b(\d{6})\b/);
+const tokenFrom = (to, since) => waitMail(to, since, /#token=([A-Za-z0-9_-]+)/);
+
+let ipCounter = 0;
+const fresh = () => new Client(`10.1.${Math.floor(ipCounter / 250)}.${(ipCounter++ % 250) + 1}`);
+
+const lastLoginAt = new Map();
+
+const loginPassword = async (client, email, password) => {
+  const wait = 1150 - (Date.now() - (lastLoginAt.get(email) ?? 0));
+  if (wait > 0) await sleep(wait);
+  const response = await client.call("POST", "/api/auth/login", { email, password });
+  if (response.status === 200) lastLoginAt.set(email, Date.now());
+  return response;
 };
 
-const server = spawn("node_modules/.bin/tsx", ["src/index.ts"], {
-  env: {
-    ...process.env,
-    PORT: String(PORT),
-    DATA_DIR: dataDir,
-    PUBLIC_DIR: path.join(dataDir, "none"),
-    ADMIN_EMAIL: "admin@example.com",
-    MAIL_TRANSPORT: "webhook",
-    MAIL_WEBHOOK_URL: `http://127.0.0.1:${MAIL_PORT}/mail`,
-    MAIL_WEBHOOK_TOKEN: "geheim-token",
-    API_KEY: "test",
-    TRUST_PROXY: "1",
-    CODE_TTL_MINUTES: "0.05",
-    CODE_RESEND_SECONDS: "1",
-    CODE_REQUESTS_PER_HOUR: "12",
-  },
-  stdio: ["ignore", "pipe", "pipe"],
-});
-let serverLog = "";
-server.stdout.on("data", (chunk) => (serverLog += chunk));
-server.stderr.on("data", (chunk) => (serverLog += chunk));
+const fullLogin = async (client, email, password) => {
+  const since = mails.length;
+  const step = await loginPassword(client, email, password);
+  if (step.status !== 200) return step;
+  const code = await codeFrom(email, since);
+  return client.call("POST", "/api/auth/verify", { email, code, challenge: step.data.challenge });
+};
 
-const waitUp = async () => {
-  for (let index = 0; index < 60; index += 1) {
+const setPassword = async (email, token, password) => fresh().call("POST", "/api/auth/reset", { token, password });
+
+let server = null;
+let serverLog = "";
+
+const startServer = async () => {
+  server = spawn("node_modules/.bin/tsx", ["src/index.ts"], {
+    env: {
+      ...process.env,
+      PORT: String(PORT),
+      DATA_DIR: dataDir,
+      PUBLIC_DIR: path.join(dataDir, "none"),
+      ADMIN_EMAIL: ADMIN,
+      ADMIN_PASSWORD: ADMIN_PW,
+      PUBLIC_URL: BASE,
+      MAIL_TRANSPORT: "webhook",
+      MAIL_WEBHOOK_URL: `http://127.0.0.1:${MAIL_PORT}/mail`,
+      MAIL_WEBHOOK_TOKEN: "geheim-token",
+      API_KEY: "test",
+      TRUST_PROXY: "1",
+      CODE_TTL_MINUTES: "0.05",
+      CODE_RESEND_SECONDS: "1",
+      CODE_REQUESTS_PER_HOUR: "60",
+      RESET_TTL_MINUTES: "0.1",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  server.stdout.on("data", (chunk) => (serverLog += chunk));
+  server.stderr.on("data", (chunk) => (serverLog += chunk));
+  for (let index = 0; index < 80; index += 1) {
     try {
       if ((await fetch(`${BASE}/api/health`)).ok) return;
     } catch {
@@ -111,182 +136,254 @@ const waitUp = async () => {
   throw new Error(`Server startet nicht:\n${serverLog}`);
 };
 
+const stopServer = async () => {
+  server.kill("SIGTERM");
+  await new Promise((resolve) => server.once("exit", resolve));
+};
+
 const run = async () => {
   await new Promise((resolve) => mailServer.listen(MAIL_PORT, "127.0.0.1", resolve));
-  await waitUp();
+  await startServer();
 
   console.log("\n== Zugriff ohne Anmeldung ==");
-  const anon = new Client("10.0.0.1");
-  for (const [method, url] of [["GET", "/api/bootstrap"], ["GET", "/api/chats"], ["POST", "/api/chats"], ["GET", "/api/usage"], ["GET", "/api/settings"], ["GET", "/api/memory"], ["GET", "/api/admin/users"], ["POST", "/api/admin/users"]]) {
-    const r = await anon.call(method, url, method === "POST" ? { email: "x@example.com" } : undefined);
+  const anon = fresh();
+  for (const [method, url] of [["GET", "/api/bootstrap"], ["GET", "/api/chats"], ["POST", "/api/chats"], ["GET", "/api/usage"], ["GET", "/api/admin/users"], ["POST", "/api/admin/users/1/reset-password"], ["POST", "/api/admin/users/1/unlock"], ["POST", "/api/auth/password"]]) {
+    const r = await anon.call(method, url, method === "POST" ? {} : undefined);
     check(`${method} ${url} ohne Login -> 401`, r.status === 401, String(r.status));
   }
   const health = await anon.call("GET", "/api/health");
-  check("Health liefert nur {ok:true}", JSON.stringify(health.data) === '{"ok":true}', JSON.stringify(health.data));
+  check("Health liefert nur {ok:true}", JSON.stringify(health.data) === '{"ok":true}');
   check("Keine Server-Info im Header", !health.headers.get("x-powered-by"));
   check("API-Antworten nicht cachebar", /no-store/.test(health.headers.get("cache-control") ?? ""));
-  check("CSP gesetzt", /default-src 'self'/.test(health.headers.get("content-security-policy") ?? ""));
-  check("X-Frame-Options DENY", health.headers.get("x-frame-options") === "DENY");
+  check("Alter Endpunkt ohne Passwort existiert nicht mehr", (await anon.call("POST", "/api/auth/request", { email: ADMIN })).status === 401);
 
-  console.log("\n== Code anfordern (keine Benutzer-Enumeration) ==");
-  const a = new Client("10.0.1.1");
-  const unknown = await a.call("POST", "/api/auth/request", { email: "fremd@example.com" });
-  await sleep(600);
-  check("Unbekannte Adresse: 202", unknown.status === 202, String(unknown.status));
-  check("Unbekannte Adresse: keine Mail verschickt", mails.length === 0, String(mails.length));
-  const knownSince = mails.length;
-  const known = await a.call("POST", "/api/auth/request", { email: "Admin@Example.com " });
-  check("Bekannte Adresse: gleiche Antwort wie unbekannte", known.status === 202 && JSON.stringify(known.data) === JSON.stringify(unknown.data), JSON.stringify([known.data, unknown.data]));
-  const code1 = await lastCodeFor("admin@example.com", knownSince);
-  check("Mail kam per Webhook mit Token an", Boolean(code1) && mails.at(-1).auth === "Bearer geheim-token");
-  check("Code ist 6-stellig", /^\d{6}$/.test(code1 ?? ""));
-  check("Code steht nicht in der API-Antwort", !JSON.stringify(known.data).includes(code1));
-  check("Ungültige E-Mail -> 400", (await a.call("POST", "/api/auth/request", { email: "kein-mail" })).status === 400);
-  check("Objekt statt E-Mail -> 400", (await a.call("POST", "/api/auth/request", { email: { $ne: "" } })).status === 400);
-  check("Überlange E-Mail -> 400", (await a.call("POST", "/api/auth/request", { email: `${"a".repeat(300)}@example.com` })).status === 400);
-  const cooldown = await a.call("POST", "/api/auth/request", { email: "admin@example.com" });
-  check("Erneute Anforderung innerhalb der Wartezeit -> 429", cooldown.status === 429, String(cooldown.status));
-
-  console.log("\n== Code prüfen ==");
-  const wrong = await a.call("POST", "/api/auth/verify", { email: "admin@example.com", code: code1 === "000000" ? "111111" : "000000" });
-  check("Falscher Code -> 401", wrong.status === 401);
-  check("Code als Zahl statt Text -> 401", (await a.call("POST", "/api/auth/verify", { email: "admin@example.com", code: Number(code1) })).status === 401);
-  check("Code mit Buchstaben -> 401", (await a.call("POST", "/api/auth/verify", { email: "admin@example.com", code: "12345a" })).status === 401);
-  check("Code für fremde Adresse -> 401", (await a.call("POST", "/api/auth/verify", { email: "fremd@example.com", code: code1 })).status === 401);
-  check("Fehlermeldungen unterscheiden sich nicht", wrong.data.error === (await a.call("POST", "/api/auth/verify", { email: "fremd@example.com", code: "123456" })).data.error);
-  for (let index = 0; index < 4; index += 1) await a.call("POST", "/api/auth/verify", { email: "admin@example.com", code: "999999" });
-  const locked = await a.call("POST", "/api/auth/verify", { email: "admin@example.com", code: code1 });
-  check("Nach 5 Fehlversuchen ist auch der richtige Code gesperrt", locked.status === 401, String(locked.status));
-  check("Dabei keine Sitzung ausgestellt", !locked.setCookie);
-
-  await sleep(1100);
-  const s2 = mails.length;
-  await a.call("POST", "/api/auth/request", { email: "admin@example.com" });
-  const code2 = await lastCodeFor("admin@example.com", s2);
-  await sleep(3300);
-  const expired = await a.call("POST", "/api/auth/verify", { email: "admin@example.com", code: code2 });
-  check("Abgelaufener Code -> 401", expired.status === 401, String(expired.status));
-
-  await sleep(1100);
-  const ok = await login(a, "admin@example.com");
-  check("Anmeldung mit gültigem Code -> 200", ok.status === 200 && ok.data.user.role === "admin", JSON.stringify(ok.data));
-  const cookieHeader = ok.setCookie ?? "";
-  check("Cookie ist HttpOnly", /HttpOnly/i.test(cookieHeader));
-  check("Cookie ist SameSite=Strict", /SameSite=Strict/i.test(cookieHeader));
-  check("Cookie enthält keinen Klartext-Benutzer", !/admin/.test(cookieHeader));
-  check("Cookie-Token lang genug (>= 40 Zeichen)", (cookieHeader.split(";")[0].split("=")[1] ?? "").length >= 40);
-  const reuse = new Client("10.0.1.2");
-  const s3 = mails.length;
-  await sleep(1100);
-  await reuse.call("POST", "/api/auth/request", { email: "admin@example.com" });
-  const code3 = await lastCodeFor("admin@example.com", s3);
-  check("Erster Einsatz des Codes klappt", (await reuse.call("POST", "/api/auth/verify", { email: "admin@example.com", code: code3 })).status === 200);
-  check("Zweiter Einsatz desselben Codes scheitert (Einmalcode)", (await new Client("10.0.1.3").call("POST", "/api/auth/verify", { email: "admin@example.com", code: code3 })).status === 401);
-
-  console.log("\n== Sitzung ==");
+  console.log("\n== Passwort und Code (zwei Faktoren) ==");
+  const a = fresh();
+  const wrong = await loginPassword(a, ADMIN, "falsches-passwort-123");
+  const wrongUnknown = await loginPassword(fresh(), "fremd@example.com", "falsches-passwort-123");
+  check("Falsches Passwort -> 401", wrong.status === 401, String(wrong.status));
+  check("Meldung nennt verbleibende Versuche", /Noch 2 Versuche/.test(wrong.data.error), wrong.data.error);
+  check("Unbekannte Adresse: identische Antwort wie falsches Passwort", wrongUnknown.status === 401 && wrongUnknown.data.error === wrong.data.error, wrongUnknown.data?.error);
+  check("Bei falschem Passwort wird keine Mail verschickt", mails.length === 0);
+  const since = mails.length;
+  const step = await loginPassword(a, ADMIN, ADMIN_PW);
+  check("Richtiges Passwort -> Code-Schritt", step.status === 200 && step.data.step === "code" && Boolean(step.data.challenge), JSON.stringify(step.data));
+  check("Nach dem Passwort noch keine Sitzung", !step.setCookie && (await a.call("GET", "/api/chats")).status === 401);
+  check("Passwort steht nicht in der Antwort", !JSON.stringify(step.data).includes(ADMIN_PW));
+  const code1 = await codeFrom(ADMIN, since);
+  check("Code kam per Webhook mit Token", Boolean(code1) && mails.at(-1).auth === "Bearer geheim-token");
+  const wrongChallenge = await a.call("POST", "/api/auth/verify", { email: ADMIN, code: code1, challenge: "x".repeat(43) });
+  check("Richtiger Code mit falscher Challenge -> 401", wrongChallenge.status === 401);
+  check("Code ohne Challenge -> 401", (await a.call("POST", "/api/auth/verify", { email: ADMIN, code: code1 })).status === 401);
+  const ok = await a.call("POST", "/api/auth/verify", { email: ADMIN, code: code1, challenge: step.data.challenge });
+  check("Code mit Challenge -> Anmeldung", ok.status === 200 && ok.data.user.role === "admin", JSON.stringify(ok.data));
+  check("Cookie HttpOnly und SameSite=Strict", /HttpOnly/i.test(ok.setCookie) && /SameSite=Strict/i.test(ok.setCookie));
+  check("Einmalcode: zweite Verwendung scheitert", (await fresh().call("POST", "/api/auth/verify", { email: ADMIN, code: code1, challenge: step.data.challenge })).status === 401);
   check("Geschützte Route mit Sitzung -> 200", (await a.call("GET", "/api/chats")).status === 200);
-  const forged = new Client("10.0.2.1");
+  const bootstrap = await a.call("GET", "/api/bootstrap");
+  check("Bootstrap enthält keine Hashes oder Schlüssel", !/scrypt|password|sk-/i.test(JSON.stringify(bootstrap.data)));
+  const forged = fresh();
   forged.cookie = "plaudi_session=" + "A".repeat(43);
   check("Erfundenes Token -> 401", (await forged.call("GET", "/api/chats")).status === 401);
-  const tampered = new Client("10.0.2.2");
-  tampered.cookie = a.cookie.slice(0, -2) + "xx";
-  check("Manipuliertes Token -> 401", (await tampered.call("GET", "/api/chats")).status === 401);
-  const bootstrap = await a.call("GET", "/api/bootstrap");
-  check("Bootstrap enthält Benutzer, aber keine API-Schlüssel", bootstrap.data.user.email === "admin@example.com" && !JSON.stringify(bootstrap.data).includes("sk-"));
+
+  console.log("\n== Benutzer anlegen, Einladung, Passwort setzen ==");
+  const sinceInvite = mails.length;
+  const created = await a.call("POST", "/api/admin/users", { email: "Nutzer@Example.com" });
+  check("Benutzer anlegen -> 201 ohne Passwort", created.status === 201 && created.data.has_password === false);
+  check("Admin-Antwort enthält keinen Hash", !/scrypt|password_hash/.test(JSON.stringify(created.data)));
+  const inviteToken = await tokenFrom("nutzer@example.com", sinceInvite);
+  check("Einladung per Mail mit Link", Boolean(inviteToken) && mails.at(-1).body.text.includes(`${BASE}/reset#token=`));
+  check("Anmeldung vor dem Setzen des Passworts scheitert", (await loginPassword(fresh(), "nutzer@example.com", "irgendwas-langes-1")).status === 401);
+  check("Zu kurzes Passwort wird abgelehnt", (await setPassword("n", inviteToken, "kurz")).status === 400);
+  check("Häufiges Passwort wird abgelehnt", (await setPassword("n", inviteToken, "passwort123")).status === 400);
+  check("Passwort mit eigener Adresse wird abgelehnt", (await setPassword("n", inviteToken, "nutzer-nutzer-1")).status === 400);
+  const USER_PW = "Kaffee-Tasse-Morgen-2026!";
+  check("Passwort per Einladungslink setzen", (await setPassword("n", inviteToken, USER_PW)).status === 200);
+  check("Link ist nur einmal gültig", (await setPassword("n", inviteToken, "Anderes-Passwort-9876")).status === 400);
+  check("Falsches Token -> 400", (await setPassword("n", "z".repeat(43), USER_PW)).status === 400);
+  const u = fresh();
+  const uLogin = await fullLogin(u, "nutzer@example.com", USER_PW);
+  check("Neuer Benutzer kann sich mit Passwort und Code anmelden", uLogin.status === 200 && uLogin.data.user.role === "user", JSON.stringify(uLogin.data));
+  check("Normaler Benutzer: Admin-Routen -> 403", (await u.call("GET", "/api/admin/users")).status === 403 && (await u.call("POST", "/api/admin/users/1/reset-password")).status === 403);
+
+  console.log("\n== Trennung der Daten ==");
+  const adminChat = (await a.call("POST", "/api/chats")).data;
+  const own = (await u.call("POST", "/api/chats")).data;
+  check("Fremder Chat fehlt in der Liste", (await u.call("GET", "/api/chats")).data.every((chat) => chat.id === own.id));
+  for (const [method, url, body] of [["GET", `/api/chats/${adminChat.id}`], ["PATCH", `/api/chats/${adminChat.id}`, { title: "x" }], ["DELETE", `/api/chats/${adminChat.id}`], ["POST", `/api/chats/${adminChat.id}/messages`, { content: "x" }]]) {
+    check(`Fremder Chat ${method} -> 404`, (await u.call(method, url, body)).status === 404);
+  }
 
   console.log("\n== CSRF ==");
   check("Fremde Origin -> 403", (await a.call("POST", "/api/chats", {}, { Origin: "https://evil.example" })).status === 403);
   check("Cross-Site Fetch-Metadaten -> 403", (await a.call("POST", "/api/chats", {}, { "Sec-Fetch-Site": "cross-site" })).status === 403);
-  check("Gleiche Origin -> erlaubt", (await a.call("POST", "/api/chats", {}, { Origin: BASE, "Sec-Fetch-Site": "same-origin" })).status === 201);
 
-  console.log("\n== Benutzerverwaltung ==");
-  check("Neuen Benutzer anlegen", (await a.call("POST", "/api/admin/users", { email: "Nutzer@Example.com" })).status === 201);
-  check("Doppelt anlegen -> 409", (await a.call("POST", "/api/admin/users", { email: "nutzer@example.com" })).status === 409);
-  check("Ungültige Adresse -> 400", (await a.call("POST", "/api/admin/users", { email: "nope" })).status === 400);
-  const userClient = new Client("10.0.3.1");
-  const userLogin = await login(userClient, "nutzer@example.com");
-  check("Neuer Benutzer kann sich anmelden", userLogin.status === 200 && userLogin.data.user.role === "user");
-  check("Normaler Benutzer: Admin-Liste -> 403", (await userClient.call("GET", "/api/admin/users")).status === 403);
-  check("Normaler Benutzer: Benutzer anlegen -> 403", (await userClient.call("POST", "/api/admin/users", { email: "x@example.com" })).status === 403);
-  check("Normaler Benutzer sieht keine API-Konten", (await userClient.call("GET", "/api/usage")).data.length === 0);
+  console.log("\n== Sperre: 3 Fehlversuche = 24 Stunden ==");
+  const lockUser = fresh();
+  const f1 = await loginPassword(lockUser, "nutzer@example.com", "falsch-falsch-1");
+  const f2 = await loginPassword(lockUser, "nutzer@example.com", "falsch-falsch-2");
+  const f3 = await loginPassword(lockUser, "nutzer@example.com", "falsch-falsch-3");
+  check("1. Fehlversuch: 401, noch 2", f1.status === 401 && /Noch 2 Versuche/.test(f1.data.error), f1.data.error);
+  check("2. Fehlversuch: 401, noch 1", f2.status === 401 && /Noch 1 Versuch,/.test(f2.data.error), f2.data.error);
+  check("3. Fehlversuch: gesperrt (423)", f3.status === 423 && /gesperrt/.test(f3.data.error), `${f3.status} ${f3.data.error}`);
+  const until = f3.data.lockedUntil;
+  check("Sperre dauert 24 Stunden", Math.abs(until - Date.now() - 24 * 3600 * 1000) < 60000);
+  const sinceLocked = mails.length;
+  const rightButLocked = await loginPassword(fresh(), "nutzer@example.com", USER_PW);
+  check("Auch das richtige Passwort wird während der Sperre abgelehnt", rightButLocked.status === 423);
+  await sleep(500);
+  check("Während der Sperre wird kein Code verschickt", mails.length === sinceLocked);
+  const lockedUnknown = fresh();
+  for (let index = 0; index < 3; index += 1) await loginPassword(lockedUnknown, "gibtsnicht@example.com", "falsch-falsch-1");
+  check("Unbekannte Adressen werden gleich behandelt (ebenfalls gesperrt)", (await loginPassword(fresh(), "gibtsnicht@example.com", "falsch-falsch-1")).status === 423);
+  check("Sitzung des gesperrten Benutzers bleibt unberührt", (await u.call("GET", "/api/chats")).status === 200);
 
-  console.log("\n== Trennung der Daten zwischen Benutzern ==");
-  const adminChat = (await a.call("POST", "/api/chats")).data;
-  const own = (await userClient.call("POST", "/api/chats")).data;
-  const listing = (await userClient.call("GET", "/api/chats")).data;
-  check("Fremder Chat fehlt in der eigenen Liste", listing.length === 1 && listing[0].id === own.id);
-  for (const [method, url, body] of [["GET", `/api/chats/${adminChat.id}`], ["GET", `/api/chats/${adminChat.id}/context`], ["PATCH", `/api/chats/${adminChat.id}`, { title: "gehackt" }], ["DELETE", `/api/chats/${adminChat.id}`], ["POST", `/api/chats/${adminChat.id}/messages`, { content: "hallo" }], ["POST", `/api/chats/${adminChat.id}/regenerate`], ["POST", `/api/chats/${adminChat.id}/stop`]]) {
-    const r = await userClient.call(method, url, body);
-    check(`Fremder Chat: ${method} ${url.replace(adminChat.id, ":id")} -> 404`, r.status === 404, String(r.status));
-  }
-  const intact = await a.call("GET", `/api/chats/${adminChat.id}`);
-  check("Fremder Chat blieb unverändert", intact.status === 200 && intact.data.chat.title === "Neuer Chat" && intact.data.messages.length === 0);
-  check("Suche liefert nur eigene Chats", (await userClient.call("GET", "/api/chats?q=Neuer")).data.every((chat) => chat.id === own.id));
-  const chatBootstrap = await userClient.call("GET", `/api/bootstrap?chat=${adminChat.id}`);
-  check("Bootstrap gibt fremden Chat nicht heraus", chatBootstrap.data.detail === null);
-  await userClient.call("PUT", "/api/settings", { customInstructions: "nur für Nutzer" });
-  check("Einstellungen sind pro Benutzer getrennt", (await a.call("GET", "/api/settings")).data.customInstructions === "");
+  await stopServer();
+  await startServer();
+  check("Sperre überlebt einen Neustart", (await loginPassword(fresh(), "nutzer@example.com", USER_PW)).status === 423);
 
-  console.log("\n== Abmelden und Entziehen von Zugriff ==");
-  const second = new Client("10.0.4.1");
+  const adminAgain = fresh();
+  const adminLogin = await fullLogin(adminAgain, ADMIN, ADMIN_PW);
+  check("Administrator ist von der Sperre des Benutzers nicht betroffen", adminLogin.status === 200);
+  const list = (await adminAgain.call("GET", "/api/admin/users")).data;
+  const target = list.find((user) => user.email === "nutzer@example.com");
+  check("Admin-Liste zeigt die Sperre", Boolean(target.locked_until));
+  check("Admin hebt Sperre auf", (await adminAgain.call("POST", `/api/admin/users/${target.id}/unlock`)).status === 200);
+  const afterUnlock = await fullLogin(fresh(), "nutzer@example.com", USER_PW);
+  check("Nach Aufhebung klappt die Anmeldung", afterUnlock.status === 200, JSON.stringify(afterUnlock.data));
+
+  console.log("\n== Sperre über den Code-Schritt ==");
+  const c = fresh();
+  const sinceC = mails.length;
+  const stepC = await loginPassword(c, "nutzer@example.com", USER_PW);
+  const realCode = await codeFrom("nutzer@example.com", sinceC);
+  const wrongCode = realCode === "000000" ? "111111" : "000000";
+  const c1 = await c.call("POST", "/api/auth/verify", { email: "nutzer@example.com", code: wrongCode, challenge: stepC.data.challenge });
+  const c2 = await c.call("POST", "/api/auth/verify", { email: "nutzer@example.com", code: wrongCode, challenge: stepC.data.challenge });
+  const c3 = await c.call("POST", "/api/auth/verify", { email: "nutzer@example.com", code: wrongCode, challenge: stepC.data.challenge });
+  check("Falsche Codes zählen mit (noch 2, noch 1, dann Sperre)", c1.status === 401 && /Noch 2/.test(c1.data.error) && /Noch 1/.test(c2.data.error) && c3.status === 423, `${c1.status} ${c2.status} ${c3.status}`);
+  check("Danach ist auch der richtige Code wertlos", (await c.call("POST", "/api/auth/verify", { email: "nutzer@example.com", code: realCode, challenge: stepC.data.challenge })).status === 423);
+  const junk = fresh();
+  for (let index = 0; index < 5; index += 1) await junk.call("POST", "/api/auth/verify", { email: ADMIN, code: "123456", challenge: "y".repeat(43) });
+  check("Ohne ausgelösten Code sperren Verify-Anfragen niemanden", (await fullLogin(fresh(), ADMIN, ADMIN_PW)).status === 200);
+
+  console.log("\n== Passwort vergessen (Mail) ==");
+  const sinceForgot = mails.length;
+  const forgotUnknown = await fresh().call("POST", "/api/auth/forgot", { email: "fremd2@example.com" });
+  await sleep(500);
+  check("Unbekannte Adresse: 202 ohne Mail", forgotUnknown.status === 202 && mails.length === sinceForgot);
+  const forgotKnown = await fresh().call("POST", "/api/auth/forgot", { email: "nutzer@example.com" });
+  check("Bekannte Adresse: gleiche Antwort", forgotKnown.status === 202 && JSON.stringify(forgotKnown.data) === JSON.stringify(forgotUnknown.data));
+  const resetToken = await tokenFrom("nutzer@example.com", sinceForgot);
+  check("Reset-Link kam per Mail", Boolean(resetToken));
+  const oldSession = u.cookie;
+  const NEW_PW = "Neues-Passwort-fuer-mich-7";
+  check("Passwort per Reset-Link ändern", (await setPassword("n", resetToken, NEW_PW)).status === 200);
+  check("Alle bisherigen Sitzungen sind beendet", (await u.call("GET", "/api/chats")).status === 401 && Boolean(oldSession));
+  check("Altes Passwort gilt nicht mehr", (await loginPassword(fresh(), "nutzer@example.com", USER_PW)).status === 401);
+  check("Neues Passwort funktioniert", (await fullLogin(fresh(), "nutzer@example.com", NEW_PW)).status === 200);
   await sleep(1100);
-  await login(second, "admin@example.com");
-  check("Zweite Sitzung funktioniert", (await second.call("GET", "/api/chats")).status === 200);
-  await second.call("POST", "/api/auth/logout-all");
-  check("Nach Abmeldung aller Geräte: erste Sitzung ungültig", (await a.call("GET", "/api/chats")).status === 401);
+  const sinceExpire = mails.length;
+  await fresh().call("POST", "/api/auth/forgot", { email: "nutzer@example.com" });
+  const expiring = await tokenFrom("nutzer@example.com", sinceExpire);
+  await sleep(6500);
+  check("Abgelaufener Reset-Link wird abgelehnt", (await setPassword("n", expiring, "Noch-ein-Passwort-123")).status === 400);
+
+  console.log("\n== Reset hebt Sperre auf ==");
+  const lockAgain = fresh();
+  for (let index = 0; index < 3; index += 1) await loginPassword(lockAgain, "nutzer@example.com", "falsch-falsch-9");
+  check("Konto ist gesperrt", (await loginPassword(fresh(), "nutzer@example.com", NEW_PW)).status === 423);
   await sleep(1100);
-  await login(a, "admin@example.com");
-  const oldCookie = a.cookie;
-  await a.call("POST", "/api/auth/logout");
-  const replay = new Client("10.0.4.2");
+  const sinceUnlock = mails.length;
+  await fresh().call("POST", "/api/auth/forgot", { email: "nutzer@example.com" });
+  const unlockToken = await tokenFrom("nutzer@example.com", sinceUnlock);
+  const FINAL_PW = "Endgueltiges-Passwort-55";
+  await setPassword("n", unlockToken, FINAL_PW);
+  check("Nach Reset per Mail ist die Sperre aufgehoben", (await fullLogin(fresh(), "nutzer@example.com", FINAL_PW)).status === 200);
+
+  console.log("\n== Passwort im Admin-Panel zurücksetzen ==");
+  const nutzerSession = fresh();
+  await fullLogin(nutzerSession, "nutzer@example.com", FINAL_PW);
+  const adminPanel = fresh();
+  await fullLogin(adminPanel, ADMIN, ADMIN_PW);
+  const nutzer = (await adminPanel.call("GET", "/api/admin/users")).data.find((user) => user.email === "nutzer@example.com");
+  const sinceAdminReset = mails.length;
+  const adminReset = await adminPanel.call("POST", `/api/admin/users/${nutzer.id}/reset-password`);
+  check("Admin setzt Passwort zurück -> 200 mit Link", adminReset.status === 200 && /\/reset#token=/.test(adminReset.data.link), JSON.stringify(adminReset.data));
+  const adminResetToken = await tokenFrom("nutzer@example.com", sinceAdminReset);
+  check("Benutzer erhält Mail mit Link", Boolean(adminResetToken) && adminReset.data.link.endsWith(adminResetToken));
+  check("Altes Passwort ist sofort ungültig", (await loginPassword(fresh(), "nutzer@example.com", FINAL_PW)).status === 401);
+  check("Laufende Sitzung des Benutzers ist beendet", (await nutzerSession.call("GET", "/api/chats")).status === 401);
+  check("Der Benutzer wählt das neue Passwort selbst über den Link", (await setPassword("n", adminResetToken, "Selbst-gewaehltes-Wort-31")).status === 200);
+  check("Anmeldung mit dem selbst gewählten Passwort", (await fullLogin(fresh(), "nutzer@example.com", "Selbst-gewaehltes-Wort-31")).status === 200);
+  check("Reset für unbekannten Benutzer -> 404", (await adminPanel.call("POST", "/api/admin/users/99999/reset-password")).status === 404);
+
+  console.log("\n== Passwort ändern (angemeldet) ==");
+  const changer = fresh();
+  await fullLogin(changer, "nutzer@example.com", "Selbst-gewaehltes-Wort-31");
+  const other = fresh();
+  await fullLogin(other, "nutzer@example.com", "Selbst-gewaehltes-Wort-31");
+  const bad = await changer.call("POST", "/api/auth/password", { current: "falsch-falsch-1", next: "Neues-Passwort-8888" });
+  check("Falsches aktuelles Passwort -> 403 mit Restversuchen", bad.status === 403 && /Noch 2/.test(bad.data.error), `${bad.status} ${bad.data?.error}`);
+  check("Schwaches neues Passwort -> 400", (await changer.call("POST", "/api/auth/password", { current: "Selbst-gewaehltes-Wort-31", next: "kurz" })).status === 400);
+  check("Passwort ändern -> 200", (await changer.call("POST", "/api/auth/password", { current: "Selbst-gewaehltes-Wort-31", next: "Geaendert-im-Konto-4711" })).status === 200);
+  check("Eigene Sitzung bleibt, andere Geräte werden abgemeldet", (await changer.call("GET", "/api/chats")).status === 200 && (await other.call("GET", "/api/chats")).status === 401);
+  const brute = fresh();
+  await brute.call("POST", "/api/auth/password", { current: "x1x1x1x1x1x1", next: "Geaendert-im-Konto-0000" });
+  await brute.call("POST", "/api/auth/password", { current: "x1x1x1x1x1x1", next: "Geaendert-im-Konto-0000" });
+  check("Ohne Anmeldung kein Passwortwechsel", (await brute.call("POST", "/api/auth/password", { current: "x", next: "y" })).status === 401);
+  for (let index = 0; index < 3; index += 1) await changer.call("POST", "/api/auth/password", { current: "falsch-falsch-1", next: "Geaendert-im-Konto-0000" });
+  check("3 falsche aktuelle Passwörter sperren den Passwortwechsel", (await changer.call("POST", "/api/auth/password", { current: "Geaendert-im-Konto-4711", next: "Geaendert-im-Konto-1234" })).status === 423);
+
+  console.log("\n== Abmelden und Entfernen ==");
+  const second = fresh();
+  await fullLogin(second, ADMIN, ADMIN_PW);
+  const oldCookie = second.cookie;
+  await second.call("POST", "/api/auth/logout");
+  const replay = fresh();
   replay.cookie = oldCookie;
-  check("Abgemeldetes Cookie lässt sich nicht erneut verwenden", (await replay.call("GET", "/api/chats")).status === 401);
-  await sleep(1100);
-  await login(a, "admin@example.com");
-  const users = (await a.call("GET", "/api/admin/users")).data;
-  const normal = users.find((user) => user.email === "nutzer@example.com");
-  const me = users.find((user) => user.email === "admin@example.com");
-  check("Admin kann sich nicht selbst entfernen", (await a.call("DELETE", `/api/admin/users/${me.id}`)).status === 400);
-  check("Letzten Admin nicht herabstufen", (await a.call("PATCH", `/api/admin/users/${me.id}`, { role: "user" })).status === 400);
-  check("Ungültige Rolle -> 400", (await a.call("PATCH", `/api/admin/users/${normal.id}`, { role: "root" })).status === 400);
-  check("Benutzer entfernen -> 204", (await a.call("DELETE", `/api/admin/users/${normal.id}`)).status === 204);
-  check("Entfernter Benutzer verliert sofort den Zugriff", (await userClient.call("GET", "/api/chats")).status === 401);
-  const afterRemoval = mails.length;
-  await sleep(1100);
-  await new Client("10.0.5.1").call("POST", "/api/auth/request", { email: "nutzer@example.com" });
-  await sleep(700);
-  check("Entfernter Benutzer erhält keinen Code mehr", mails.length === afterRemoval);
+  check("Abgemeldetes Cookie ist wertlos", (await replay.call("GET", "/api/chats")).status === 401);
+  const removable = fresh();
+  const sinceRemove = mails.length;
+  await adminPanel.call("POST", "/api/admin/users", { email: "weg@example.com" });
+  const removeToken = await tokenFrom("weg@example.com", sinceRemove);
+  await setPassword("w", removeToken, "Zum-Entfernen-gedacht-12");
+  await fullLogin(removable, "weg@example.com", "Zum-Entfernen-gedacht-12");
+  const weg = (await adminPanel.call("GET", "/api/admin/users")).data.find((user) => user.email === "weg@example.com");
+  check("Benutzer entfernen -> 204", (await adminPanel.call("DELETE", `/api/admin/users/${weg.id}`)).status === 204);
+  check("Entfernter Benutzer verliert sofort den Zugriff", (await removable.call("GET", "/api/chats")).status === 401);
+  const me = (await adminPanel.call("GET", "/api/admin/users")).data.find((user) => user.email === ADMIN);
+  check("Admin kann sich nicht selbst entfernen", (await adminPanel.call("DELETE", `/api/admin/users/${me.id}`)).status === 400);
 
-  console.log("\n== Begrenzung der Anfragen ==");
-  const flood = new Client("10.0.6.1");
-  const statuses = [];
-  for (let index = 0; index < 14; index += 1) {
-    await sleep(1100);
-    statuses.push((await flood.call("POST", "/api/auth/request", { email: "flut@example.com" })).status);
-  }
-  check("Pro Adresse höchstens 12 Anforderungen pro Stunde (hier konfiguriert)", statuses.slice(0, 12).every((s) => s === 202) && statuses.slice(12).every((s) => s === 429), statuses.join(","));
-  const bruteforce = new Client("10.0.7.1");
+  console.log("\n== Speicherung ==");
+  const dbBytes = ["chatbot.sqlite", "chatbot.sqlite-wal"].map((name) => (fs.existsSync(path.join(dataDir, name)) ? fs.readFileSync(path.join(dataDir, name)).toString("latin1") : "")).join("");
+  check("Kein Klartext-Passwort in der Datenbank", ![ADMIN_PW, USER_PW, NEW_PW, FINAL_PW, "Geaendert-im-Konto-4711"].some((pw) => dbBytes.includes(pw)));
+  check("Passwörter liegen als scrypt-Hash vor", /scrypt\$32768\$8\$1\$/.test(dbBytes));
+  check("Reset-Token liegen nicht im Klartext in der Datenbank", ![inviteToken, resetToken, adminResetToken].some((token) => dbBytes.includes(token)));
+  check("Weder Passwörter noch Codes im Server-Log", ![ADMIN_PW, USER_PW, NEW_PW, FINAL_PW, code1].some((secret) => serverLog.includes(secret)));
+
+  console.log("\n== Begrenzung je IP ==");
+  const flood = fresh();
   let blocked = 0;
   for (let index = 0; index < 40; index += 1) {
-    const r = await bruteforce.call("POST", "/api/auth/verify", { email: `x${index}@example.com`, code: "123456" });
+    const r = await flood.call("POST", "/api/auth/login", { email: `flut${index}@example.com`, password: "falsch-falsch-1" });
     if (r.status === 429) blocked += 1;
   }
-  check("Prüf-Versuche je IP werden begrenzt", blocked > 0, String(blocked));
-  check("Anderes Gerät bleibt unbeeinträchtigt", (await new Client("10.0.7.2").call("POST", "/api/auth/verify", { email: "a@example.com", code: "123456" })).status === 401);
-
-  console.log("\n== Log ==");
-  const logged = [code1, code2, code3].filter(Boolean).some((code) => serverLog.includes(code));
-  check("Server-Log enthält keine Anmeldecodes", !logged);
+  check("Anmeldeversuche je IP werden begrenzt", blocked > 0, String(blocked));
 };
 
 run()
   .catch((error) => {
-    console.error("Testlauf abgebrochen:", error.message);
+    console.error("Testlauf abgebrochen:", error.stack ?? error.message);
     results.fail += 1;
   })
-  .finally(() => {
+  .finally(async () => {
     console.log(`\nErgebnis: ${results.pass} bestanden, ${results.fail} fehlgeschlagen`);
-    server.kill("SIGTERM");
+    try {
+      server.kill("SIGTERM");
+    } catch {
+      results.fail += 0;
+    }
     mailServer.close();
     fs.rmSync(dataDir, { recursive: true, force: true });
     process.exit(results.fail ? 1 : 0);

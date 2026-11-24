@@ -13,7 +13,7 @@ const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", config.trustProxy);
 
-initUsers();
+await initUsers();
 
 app.use((_req, res, next) => {
   if (config.secureCookies) res.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");

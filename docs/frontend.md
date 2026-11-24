@@ -40,4 +40,14 @@ Beschriftete Schaltflächen, sichtbarer Fokus, `role="dialog"` mit Fokusfalle un
 
 ## Logo
 
-Das Logo liegt unter `frontend/public/logo.svg` und wird oben links in der Seitenleiste (mobil in der Kopfzeile) angezeigt. Zum Austauschen die Datei ersetzen, das Seitenverhältnis wird in `components/Logo.tsx` (170 zu 48) festgelegt. Ein transparentes PNG oder SVG funktioniert im hellen und dunklen Theme am besten.
+`frontend/public/logo.png` wird oben links in der Seitenleiste (mobil in der Kopfzeile), auf den Anmelde- und Reset-Seiten, im Leerzustand und in den Mails verwendet. `favicon.png` und `apple-touch-icon.png` liegen daneben.
+
+Ein Original bereitet `tools/prepare-logo` vor:
+
+```bash
+cd tools/prepare-logo
+npm install
+npm start -- /pfad/zum/original.png
+```
+
+Das Werkzeug schneidet Ränder ab, macht weißen Hintergrund transparent und schreibt `logo.png`, `favicon.png` und `apple-touch-icon.png` nach `frontend/public`. Danach `docker compose up -d --build`.

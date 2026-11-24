@@ -1,6 +1,6 @@
 # Sicherheitsbewertung
 
-Stand der Prüfung: automatisierte Tests (`backend/tests/security.mjs`, 77 Prüfungen) plus Durchsicht des Codes. `npm audit` meldet für Backend und Frontend keine bekannten Schwachstellen in den Produktionsabhängigkeiten.
+Stand der Prüfung: automatisierte Tests (`backend/tests/security.mjs`, 95 Prüfungen, und `backend/tests/session-expiry.mjs`) plus Durchsicht des Codes. `npm audit` meldet für Backend und Frontend keine bekannten Schwachstellen in den Produktionsabhängigkeiten.
 
 ```bash
 cd backend && node tests/security.mjs
@@ -31,8 +31,8 @@ Für den Betrieb im Internet **geeignet, wenn die Bedingungen unten erfüllt sin
 
 ## Bekannte Grenzen
 
-- **Ein Faktor.** Die Anmeldung per Mailcode ist passwortlos. Es ist keine echte Zwei-Faktor-Anmeldung. Wer die Zustellung der Mails kontrolliert, kontrolliert den Zugang. Soll zusätzlich ein Passwort oder ein Authenticator (TOTP) als erster oder zweiter Faktor verlangt werden, ist das eine Erweiterung.
-- **Sperrung durch Dritte.** Wer eine freigeschaltete Adresse kennt, kann deren Code-Anforderungen verbrauchen (5 pro Stunde) und so die Anmeldung kurz blockieren. Der Zugriff selbst wird dadurch nicht möglich.
+- **Mail als zweiter Faktor.** Wer Passwort und Postfach besitzt, kommt rein. Die Passwort-Zurücksetzen-Funktion hängt am Postfach. Ein Authenticator (TOTP) wäre ein von der Mail unabhängiger zweiter Faktor und ist eine mögliche Erweiterung.
+- **Sperrung durch Dritte.** Wer eine Adresse kennt, kann sie mit 3 Fehleingaben für 24 Stunden sperren. Der Zugriff selbst wird dadurch nicht möglich. Administratoren und der Reset per Mail heben die Sperre auf.
 - **Begrenzungen im Arbeitsspeicher.** Sie gelten je Container und werden bei einem Neustart zurückgesetzt. Mehrere Container hinter einem Load Balancer würden sie nicht teilen.
 - **Keine Protokollierung ins Audit-System.** Anmeldungen und Admin-Aktionen stehen im Container-Log, ohne Codes.
 - **Daten an Dritte.** Chatinhalte gehen zur Beantwortung an die KI-API.
@@ -42,7 +42,8 @@ Für den Betrieb im Internet **geeignet, wenn die Bedingungen unten erfüllt sin
 
 | Bereich | Maßnahme |
 | --- | --- |
-| Zugang | Allowlist, Einmalcode (HMAC, 5 Versuche, 10 Minuten), keine Benutzer-Enumeration |
+| Zugang | Allowlist, Passwort (scrypt) plus Einmalcode (HMAC, an den Ablauf gebunden), Sperre nach 3 Fehlversuchen für 24 Stunden (persistent), keine Benutzer-Enumeration |
+| Passwort-Reset | Einmal-Link per Mail im URL-Fragment, nur als Hash gespeichert, beendet alle Sitzungen |
 | Sitzung | Zufallstoken 256 Bit, Hash in der Datenbank, serverseitig widerrufbar, Idle- und Höchstdauer |
 | Cookie | `HttpOnly`, `SameSite=Strict`, `Secure` und `__Host-` hinter HTTPS |
 | Angriffe von Webseiten | Herkunftsprüfung (`Origin`, `Sec-Fetch-Site`), strenge CSP, `X-Frame-Options`, HSTS hinter HTTPS |

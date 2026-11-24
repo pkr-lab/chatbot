@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { api } from "../api";
 import type { AppConfig, AuthUser, ManagedUser, Settings } from "../types";
 import { Icon } from "./Icon";
+import { PasswordField } from "./PasswordField";
 
 interface SettingsDialogProps {
   user: AuthUser;
@@ -21,6 +22,12 @@ export const SettingsDialog = ({ user, settings, config, onSave, onClose }: Sett
   const [newEmail, setNewEmail] = useState("");
   const [newAdmin, setNewAdmin] = useState(false);
   const [userError, setUserError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ text: string; link?: string } | null>(null);
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [repeat, setRepeat] = useState("");
+  const [pwMessage, setPwMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [pwBusy, setPwBusy] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
   const first = useRef<HTMLTextAreaElement>(null);
 
@@ -71,6 +78,49 @@ export const SettingsDialog = ({ user, settings, config, onSave, onClose }: Sett
       await api.removeUser(target.id);
       setUsers((previous) => previous.filter((item) => item.id !== target.id));
     });
+
+  const reload = (): Promise<void> => api.users().then(setUsers);
+
+  const resetUser = (target: ManagedUser): Promise<void> =>
+    guard(async () => {
+      if (!window.confirm(`Passwort von ${target.email} zurücksetzen? Das alte Passwort wird sofort ungültig und alle Sitzungen enden.`)) return;
+      const result = await api.resetUserPassword(target.id);
+      setNotice({ text: `Zurücksetzen-Link per Mail an ${target.email} gesendet. Falls die Mail nicht ankommt, kannst du den Link selbst weitergeben:`, link: result.link });
+      await reload();
+    });
+
+  const unlockUser = (target: ManagedUser): Promise<void> =>
+    guard(async () => {
+      await api.unlockUser(target.id);
+      await reload();
+    });
+
+  const inviteUser = (target: ManagedUser): Promise<void> =>
+    guard(async () => {
+      await api.inviteUser(target.id);
+      setNotice({ text: `Einladung an ${target.email} gesendet.` });
+    });
+
+  const changePassword = async (event: FormEvent): Promise<void> => {
+    event.preventDefault();
+    if (next !== repeat) {
+      setPwMessage({ ok: false, text: "Die neuen Passwörter stimmen nicht überein." });
+      return;
+    }
+    setPwBusy(true);
+    setPwMessage(null);
+    try {
+      await api.changePassword(current, next);
+      setPwMessage({ ok: true, text: "Passwort geändert. Andere Geräte wurden abgemeldet." });
+      setCurrent("");
+      setNext("");
+      setRepeat("");
+    } catch (failure) {
+      setPwMessage({ ok: false, text: failure instanceof Error ? failure.message : "Passwort konnte nicht geändert werden." });
+    } finally {
+      setPwBusy(false);
+    }
+  };
 
   const logoutEverywhere = (): void => {
     void api.logoutAll().finally(() => window.location.assign("/"));
@@ -160,6 +210,28 @@ export const SettingsDialog = ({ user, settings, config, onSave, onClose }: Sett
                         {item.role === "admin" ? "Administrator" : "Benutzer"}
                         {item.last_login ? ` · zuletzt ${new Date(item.last_login).toLocaleDateString("de-DE")}` : " · noch nie angemeldet"}
                       </span>
+                      {!item.has_password ? <span className="flag">Passwort noch nicht festgelegt</span> : null}
+                      {item.locked_until ? (
+                        <span className="flag bad">
+                          Gesperrt bis {new Date(item.locked_until).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="row-actions">
+                      {item.locked_until ? (
+                        <button type="button" className="text-button" onClick={() => void unlockUser(item)}>
+                          Entsperren
+                        </button>
+                      ) : null}
+                      {item.id === user.id ? null : item.has_password ? (
+                        <button type="button" className="text-button" onClick={() => void resetUser(item)}>
+                          Passwort zurücksetzen
+                        </button>
+                      ) : (
+                        <button type="button" className="text-button" onClick={() => void inviteUser(item)}>
+                          Einladung senden
+                        </button>
+                      )}
                     </div>
                     {item.id !== user.id ? (
                       <div className="row-actions">
@@ -200,12 +272,34 @@ export const SettingsDialog = ({ user, settings, config, onSave, onClose }: Sett
                 </button>
               </form>
               {userError ? <p className="over">{userError}</p> : null}
+              {notice ? (
+                <div className="banner" role="status">
+                  <p>{notice.text}</p>
+                  {notice.link ? (
+                    <div className="link-box">
+                      <input readOnly value={notice.link} aria-label="Zurücksetzen-Link" onFocus={(event) => event.target.select()} />
+                      <button type="button" className="text-button" onClick={() => void navigator.clipboard.writeText(notice.link as string)}>
+                        Kopieren
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </section>
           ) : null}
 
           <section>
             <h3>Konto</h3>
             <p className="hint">Angemeldet als {user.email}.</p>
+            <form className="pw-form" onSubmit={(event) => void changePassword(event)}>
+              <PasswordField label="Aktuelles Passwort" value={current} onChange={setCurrent} autoComplete="current-password" />
+              <PasswordField label="Neues Passwort" value={next} onChange={setNext} autoComplete="new-password" />
+              <PasswordField label="Neues Passwort wiederholen" value={repeat} onChange={setRepeat} autoComplete="new-password" />
+              {pwMessage ? <p className={pwMessage.ok ? "hint" : "over"}>{pwMessage.text}</p> : null}
+              <button type="submit" className="secondary fit" disabled={!current || !next || !repeat || pwBusy}>
+                Passwort ändern
+              </button>
+            </form>
             <button type="button" className="secondary fit" onClick={logoutEverywhere}>
               Auf allen Geräten abmelden
             </button>

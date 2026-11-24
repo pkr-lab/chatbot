@@ -76,6 +76,8 @@ export interface AuthUser {
 export interface ManagedUser extends AuthUser {
   created_at: number;
   last_login: number | null;
+  has_password: boolean;
+  locked_until: number | null;
 }
 
 export interface Bootstrap {

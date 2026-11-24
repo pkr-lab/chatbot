@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api } from "../api";
 import { Logo } from "./Logo";
+import { PasswordField } from "./PasswordField";
+
+type Mode = "password" | "code" | "forgot" | "forgot-sent";
 
 const RESEND_SECONDS = 30;
 
 export const Login = ({ onSuccess }: { onSuccess: () => void }) => {
+  const [mode, setMode] = useState<Mode>("password");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
-  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [challenge, setChallenge] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [wait, setWait] = useState(0);
@@ -20,62 +25,88 @@ export const Login = ({ onSuccess }: { onSuccess: () => void }) => {
   }, [wait]);
 
   useEffect(() => {
-    if (sentTo) codeInput.current?.focus();
-  }, [sentTo]);
+    if (mode === "code") codeInput.current?.focus();
+  }, [mode]);
 
   const message = (failure: unknown, fallback: string): string => (failure instanceof Error ? failure.message : fallback);
 
-  const requestCode = async (target: string): Promise<void> => {
+  const submitPassword = async (event?: FormEvent): Promise<void> => {
+    event?.preventDefault();
+    if (!email.trim() || !password || busy) return;
     setBusy(true);
     setError(null);
     try {
-      await api.requestCode(target);
-      setSentTo(target);
+      const step = await api.login(email.trim(), password);
+      setChallenge(step.challenge);
+      setPassword("");
       setCode("");
       setWait(RESEND_SECONDS);
+      setMode("code");
     } catch (failure) {
-      setError(message(failure, "Der Code konnte nicht angefordert werden."));
+      setError(message(failure, "Anmeldung fehlgeschlagen."));
+      setPassword("");
     } finally {
       setBusy(false);
     }
   };
 
   const verify = async (value: string): Promise<void> => {
-    if (!sentTo || busy) return;
+    if (busy) return;
     setBusy(true);
     setError(null);
     try {
-      await api.verifyCode(sentTo, value);
+      await api.verifyCode(email.trim(), value, challenge);
       onSuccess();
     } catch (failure) {
-      setError(message(failure, "Anmeldung fehlgeschlagen."));
+      setError(message(failure, "Code ungültig."));
       setCode("");
+      setBusy(false);
       codeInput.current?.focus();
+    }
+  };
+
+  const submitForgot = async (event: FormEvent): Promise<void> => {
+    event.preventDefault();
+    if (!email.trim() || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.forgot(email.trim());
+      setMode("forgot-sent");
+    } catch (failure) {
+      setError(message(failure, "Die Anfrage ist fehlgeschlagen."));
+    } finally {
       setBusy(false);
     }
   };
 
-  const submitEmail = (event: FormEvent): void => {
-    event.preventDefault();
-    const trimmed = email.trim();
-    if (trimmed && !busy) void requestCode(trimmed);
+  const back = (): void => {
+    setMode("password");
+    setError(null);
+    setCode("");
   };
 
-  const submitCode = (event: FormEvent): void => {
-    event.preventDefault();
-    if (/^\d{6}$/.test(code)) void verify(code);
-  };
+  const errorLine = error ? (
+    <p className="over" role="alert">
+      {error}
+    </p>
+  ) : null;
 
-  return (
-    <main className="login">
-      {sentTo ? (
-        <form onSubmit={submitCode}>
-          <Logo height={44} />
+  if (mode === "code") {
+    return (
+      <main className="login">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (/^\d{6}$/.test(code)) void verify(code);
+          }}
+        >
+          <Logo height={52} />
           <p>
-            Falls <strong>{sentTo}</strong> freigeschaltet ist, haben wir einen 6-stelligen Code gesendet. Er ist 10 Minuten gültig.
+            Passwort stimmt. Wir haben einen 6-stelligen Code an <strong>{email.trim()}</strong> gesendet. Er ist 10 Minuten gültig.
           </p>
           <label>
-            <span>Code</span>
+            <span>Code aus der E-Mail</span>
             <input
               ref={codeInput}
               className="code-input"
@@ -92,55 +123,82 @@ export const Login = ({ onSuccess }: { onSuccess: () => void }) => {
               }}
             />
           </label>
-          {error ? (
-            <p className="over" role="alert">
-              {error}
-            </p>
-          ) : null}
+          {errorLine}
           <button type="submit" className="primary" disabled={code.length !== 6 || busy}>
             {busy ? "Prüfe…" : "Anmelden"}
           </button>
           <div className="login-links">
-            <button type="button" className="text-button" disabled={wait > 0 || busy} onClick={() => void requestCode(sentTo)}>
-              {wait > 0 ? `Neuen Code senden (${wait})` : "Neuen Code senden"}
-            </button>
-            <button
-              type="button"
-              className="text-button"
-              onClick={() => {
-                setSentTo(null);
-                setError(null);
-              }}
-            >
-              Andere Adresse
+            <span className="hint">{wait > 0 ? `Neuer Code nach erneuter Anmeldung in ${wait} s` : "Kein Code? Zurück und erneut anmelden."}</span>
+            <button type="button" className="text-button" onClick={back}>
+              Zurück
             </button>
           </div>
         </form>
-      ) : (
-        <form onSubmit={submitEmail}>
-          <Logo height={44} />
-          <p>Melde dich mit deiner freigeschalteten E-Mail-Adresse an. Du erhältst einen Einmalcode per Mail.</p>
-          <label>
-            <span>E-Mail-Adresse</span>
-            <input
-              type="email"
-              value={email}
-              autoComplete="email"
-              autoFocus
-              maxLength={254}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </label>
-          {error ? (
-            <p className="over" role="alert">
-              {error}
-            </p>
-          ) : null}
-          <button type="submit" className="primary" disabled={!email.trim() || busy}>
-            {busy ? "Sende…" : "Code senden"}
-          </button>
+      </main>
+    );
+  }
+
+  if (mode === "forgot" || mode === "forgot-sent") {
+    return (
+      <main className="login">
+        <form onSubmit={(event) => void submitForgot(event)}>
+          <Logo height={52} />
+          {mode === "forgot-sent" ? (
+            <>
+              <p>
+                Falls <strong>{email.trim()}</strong> freigeschaltet ist, haben wir einen Link zum Festlegen eines neuen Passworts gesendet. Er ist 30 Minuten
+                gültig. Ein neues Passwort hebt auch eine Sperre auf.
+              </p>
+              <button type="button" className="primary" onClick={back}>
+                Zur Anmeldung
+              </button>
+            </>
+          ) : (
+            <>
+              <p>Gib deine E-Mail-Adresse ein. Wir senden dir einen Link, mit dem du ein neues Passwort festlegst.</p>
+              <label>
+                <span>E-Mail-Adresse</span>
+                <input type="email" value={email} autoComplete="email" autoFocus maxLength={254} onChange={(event) => setEmail(event.target.value)} />
+              </label>
+              {errorLine}
+              <button type="submit" className="primary" disabled={!email.trim() || busy}>
+                {busy ? "Sende…" : "Link senden"}
+              </button>
+              <button type="button" className="text-button" onClick={back}>
+                Zurück
+              </button>
+            </>
+          )}
         </form>
-      )}
+      </main>
+    );
+  }
+
+  return (
+    <main className="login">
+      <form onSubmit={(event) => void submitPassword(event)}>
+        <Logo height={52} />
+        <p>Melde dich mit E-Mail und Passwort an. Danach bestätigst du mit einem Code per Mail.</p>
+        <label>
+          <span>E-Mail-Adresse</span>
+          <input type="email" value={email} autoComplete="username" autoFocus maxLength={254} onChange={(event) => setEmail(event.target.value)} />
+        </label>
+        <PasswordField label="Passwort" value={password} onChange={setPassword} autoComplete="current-password" />
+        {errorLine}
+        <button type="submit" className="primary" disabled={!email.trim() || !password || busy}>
+          {busy ? "Prüfe…" : "Weiter"}
+        </button>
+        <button
+          type="button"
+          className="text-button"
+          onClick={() => {
+            setError(null);
+            setMode("forgot");
+          }}
+        >
+          Passwort vergessen oder noch keins?
+        </button>
+      </form>
     </main>
   );
 };

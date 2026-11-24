@@ -64,9 +64,21 @@ export const sendMail = async (mail: Mail): Promise<void> => {
   console.log(`[mail:console] an ${mail.to}: ${mail.subject}\n${mail.text}`);
 };
 
+const frame = (content: string): string =>
+  `<div style="font-family:system-ui,sans-serif;max-width:460px;margin:auto;color:#1f1e1c"><img src="${config.publicUrl}/logo.png" alt="Plaudi" height="40" style="height:40px;margin-bottom:12px">${content}</div>`;
+
+export const resetMail = (to: string, token: string, ttlMinutes: number, invite: boolean): Mail => {
+  const link = `${config.publicUrl}/reset#token=${token}`;
+  const duration = ttlMinutes >= 120 ? `${Math.round(ttlMinutes / 60)} Stunden` : `${Math.round(ttlMinutes)} Minuten`;
+  const intro = invite ? "Du wurdest zu Plaudi eingeladen. Lege jetzt dein Passwort fest:" : "Für dein Plaudi-Konto wurde ein neues Passwort angefordert:";
+  const text = `${intro}\n\n${link}\n\nDer Link ist ${duration} gültig und kann nur einmal verwendet werden.\nWenn du das nicht warst, ignoriere diese E-Mail. Dein Passwort bleibt dann unverändert.`;
+  const html = frame(`<p>${intro}</p><p><a href="${link}" style="display:inline-block;padding:12px 20px;background:#1a78ad;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">Passwort festlegen</a></p><p style="color:#666;font-size:13px">Der Link ist ${duration} gültig und kann nur einmal verwendet werden. Wenn du das nicht warst, ignoriere diese E-Mail.</p>`);
+  return { to, subject: invite ? "Einladung zu Plaudi" : "Passwort für Plaudi zurücksetzen", text, html };
+};
+
 export const loginCodeMail = (to: string, code: string, ttlMinutes: number): Mail => {
   const minutes = Math.round(ttlMinutes);
-  const text = `Dein Anmeldecode für Plaudi lautet: ${code}\n\nDer Code ist ${minutes} Minuten gültig und kann nur einmal verwendet werden.\nWenn du dich nicht anmelden wolltest, ignoriere diese E-Mail.`;
-  const html = `<div style="font-family:system-ui,sans-serif;max-width:420px;margin:auto"><h2 style="color:#2fa3dc">Plaudi</h2><p>Dein Anmeldecode:</p><p style="font-size:32px;letter-spacing:6px;font-weight:700">${code}</p><p>Der Code ist ${minutes} Minuten gültig und kann nur einmal verwendet werden.</p><p style="color:#666">Wenn du dich nicht anmelden wolltest, ignoriere diese E-Mail.</p></div>`;
+  const text = `Dein Anmeldecode für Plaudi lautet: ${code}\n\nDer Code ist ${minutes} Minuten gültig und kann nur einmal verwendet werden.\nWenn du dich nicht angemeldet hast, ändere umgehend dein Passwort.`;
+  const html = frame(`<p>Dein Anmeldecode:</p><p style="font-size:32px;letter-spacing:6px;font-weight:700">${code}</p><p>Der Code ist ${minutes} Minuten gültig und kann nur einmal verwendet werden.</p><p style="color:#666">Wenn du dich nicht anmelden wolltest, ändere dein Passwort.</p>`);
   return { to, subject: `Dein Plaudi-Code: ${code}`, text, html };
 };

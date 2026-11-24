@@ -18,6 +18,11 @@ Update: `git pull`, dann `docker compose up -d --build`. Die Daten bleiben im Vo
 | --- | --- | --- |
 | `API_KEY` | leer | API-Schlüssel (Konto 1) |
 | `API_KEYS` | leer | Mehrere Schlüssel, komma-getrennt, optional `Name=Schlüssel`. Reihenfolge ist Priorität |
+| `ADMIN_PASSWORD` | leer | Startpasswort des ersten Administrators, wird nur gesetzt, wenn noch keins existiert |
+| `PUBLIC_URL` | `http://localhost:3000` | Öffentliche Adresse für Links in Mails. Im Betrieb zwingend setzen |
+| `RESET_TTL_MINUTES`, `INVITE_TTL_HOURS` | `30`, `24` | Gültigkeit von Reset- und Einladungslinks |
+| `MAX_LOGIN_FAILURES`, `LOCK_HOURS` | `3`, `24` | Fehlversuche bis zur Sperre und Dauer der Sperre |
+| `PASSWORD_MIN_LENGTH` | `10` | Mindestlänge neuer Passwörter |
 | `ADMIN_EMAIL` | leer | **Pflicht beim ersten Start.** Erster Administrator, wird bei jedem Start sichergestellt |
 | `MAIL_TRANSPORT` | automatisch | `webhook`, `smtp` oder `console` (nur Test, schreibt Codes ins Log) |
 | `MAIL_WEBHOOK_URL`, `MAIL_WEBHOOK_TOKEN` | leer | Anbindung an einen bestehenden Mail-Dienst, siehe [anmeldung.md](anmeldung.md) |

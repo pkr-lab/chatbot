@@ -42,8 +42,16 @@ export const api = {
   usage: () => request<AccountUsage[]>("/usage"),
   context: (id: string) => request<ChatContext>(`/chats/${id}/context`),
   me: () => request<{ authenticated: boolean }>("/auth/me"),
-  requestCode: (email: string) => request<{ ok: true; ttlMinutes: number }>("/auth/request", json({ email })),
-  verifyCode: (email: string, code: string) => request<{ ok: true; user: AuthUser }>("/auth/verify", json({ email, code })),
+  login: (email: string, password: string) =>
+    request<{ step: "code"; challenge: string; ttlMinutes: number }>("/auth/login", json({ email, password })),
+  verifyCode: (email: string, code: string, challenge: string) =>
+    request<{ ok: true; user: AuthUser }>("/auth/verify", json({ email, code, challenge })),
+  forgot: (email: string) => request<{ ok: true }>("/auth/forgot", json({ email })),
+  resetPassword: (token: string, password: string) => request<{ ok: true }>("/auth/reset", json({ token, password })),
+  changePassword: (current: string, next: string) => request<{ ok: true }>("/auth/password", json({ current, next })),
+  resetUserPassword: (id: number) => request<{ ok: true; link: string }>(`/admin/users/${id}/reset-password`, { method: "POST" }),
+  unlockUser: (id: number) => request<{ ok: true }>(`/admin/users/${id}/unlock`, { method: "POST" }),
+  inviteUser: (id: number) => request<{ ok: true }>(`/admin/users/${id}/invite`, { method: "POST" }),
   logout: () => request<{ ok: true }>("/auth/logout", { method: "POST" }),
   logoutAll: () => request<{ ok: true }>("/auth/logout-all", { method: "POST" }),
   users: () => request<ManagedUser[]>("/admin/users"),

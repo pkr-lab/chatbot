@@ -5,7 +5,7 @@ import { App } from "./App";
 import { preloadMarkdown } from "./components/LazyMarkdown";
 import "./styles.css";
 
-prefetchBootstrap();
+if (!window.location.pathname.startsWith("/reset")) prefetchBootstrap();
 
 const root = document.getElementById("root");
 

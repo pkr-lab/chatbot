@@ -7,6 +7,7 @@ import { config } from "./config.js";
 export interface UserRow {
   id: number;
   email: string;
+  password_hash: string | null;
   role: "admin" | "user";
   created_at: number;
   last_login: number | null;
@@ -23,9 +24,23 @@ export interface SessionRow {
 export interface CodeRow {
   email: string;
   code_hash: string;
+  challenge_hash: string;
   expires_at: number;
   attempts: number;
   created_at: number;
+}
+
+export interface AttemptRow {
+  key: string;
+  failures: number;
+  window_start: number;
+  locked_until: number;
+}
+
+export interface ResetRow {
+  user_id: number;
+  token_hash: string;
+  expires_at: number;
 }
 
 export interface ChatRow {
@@ -104,6 +119,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS login_codes (
     email TEXT PRIMARY KEY,
     code_hash TEXT NOT NULL,
+    challenge_hash TEXT NOT NULL DEFAULT '',
     expires_at INTEGER NOT NULL,
     attempts INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL
@@ -125,6 +141,41 @@ db.exec(`
     PRIMARY KEY (user_id, key)
   );
 `);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS password_resets (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS login_attempts (
+    key TEXT PRIMARY KEY,
+    failures INTEGER NOT NULL,
+    window_start INTEGER NOT NULL,
+    locked_until INTEGER NOT NULL DEFAULT 0
+  );
+`);
+
+const userColumns = db.prepare<[], { name: string }>("PRAGMA table_info(users)").all();
+if (!userColumns.some((column) => column.name === "password_hash")) {
+  db.exec("ALTER TABLE users ADD COLUMN password_hash TEXT");
+}
+const codeColumns = db.prepare<[], { name: string }>("PRAGMA table_info(login_codes)").all();
+if (!codeColumns.some((column) => column.name === "challenge_hash")) {
+  db.exec("DROP TABLE login_codes");
+  db.exec(`CREATE TABLE login_codes (
+    email TEXT PRIMARY KEY,
+    code_hash TEXT NOT NULL,
+    challenge_hash TEXT NOT NULL DEFAULT '',
+    expires_at INTEGER NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+  )`);
+}
 
 const chatColumns = db.prepare<[], { name: string }>("PRAGMA table_info(chats)").all();
 if (!chatColumns.some((column) => column.name === "user_id")) {
@@ -191,9 +242,27 @@ const stmts = {
   userCount: db.prepare<[], { count: number }>("SELECT COUNT(*) AS count FROM users"),
   getCode: db.prepare<[string], CodeRow>("SELECT * FROM login_codes WHERE email = ?"),
   putCode: db.prepare(
-    `INSERT INTO login_codes (email, code_hash, expires_at, attempts, created_at) VALUES (?, ?, ?, 0, ?)
-     ON CONFLICT(email) DO UPDATE SET code_hash = excluded.code_hash, expires_at = excluded.expires_at, attempts = 0, created_at = excluded.created_at`,
+    `INSERT INTO login_codes (email, code_hash, challenge_hash, expires_at, attempts, created_at) VALUES (?, ?, ?, ?, 0, ?)
+     ON CONFLICT(email) DO UPDATE SET code_hash = excluded.code_hash, challenge_hash = excluded.challenge_hash,
+       expires_at = excluded.expires_at, attempts = 0, created_at = excluded.created_at`,
   ),
+  setPassword: db.prepare("UPDATE users SET password_hash = ? WHERE id = ?"),
+  putReset: db.prepare(
+    `INSERT INTO password_resets (user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET token_hash = excluded.token_hash, expires_at = excluded.expires_at, created_at = excluded.created_at`,
+  ),
+  findReset: db.prepare<[string], ResetRow>("SELECT user_id, token_hash, expires_at FROM password_resets WHERE token_hash = ?"),
+  deleteReset: db.prepare("DELETE FROM password_resets WHERE user_id = ?"),
+  purgeResets: db.prepare("DELETE FROM password_resets WHERE expires_at < ?"),
+  getAttempt: db.prepare<[string], AttemptRow>("SELECT * FROM login_attempts WHERE key = ?"),
+  putAttempt: db.prepare(
+    `INSERT INTO login_attempts (key, failures, window_start, locked_until) VALUES (?, ?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET failures = excluded.failures, window_start = excluded.window_start, locked_until = excluded.locked_until`,
+  ),
+  clearAttempt: db.prepare("DELETE FROM login_attempts WHERE key = ?"),
+  purgeAttempts: db.prepare("DELETE FROM login_attempts WHERE locked_until < ? AND window_start < ?"),
+  clearPassword: db.prepare("UPDATE users SET password_hash = NULL WHERE id = ?"),
+  deleteSessionsExcept: db.prepare("DELETE FROM sessions WHERE user_id = ? AND id != ?"),
   bumpAttempts: db.prepare("UPDATE login_codes SET attempts = attempts + 1 WHERE email = ?"),
   deleteCode: db.prepare("DELETE FROM login_codes WHERE email = ?"),
   purgeCodes: db.prepare("DELETE FROM login_codes WHERE expires_at < ?"),
@@ -339,8 +408,51 @@ export const userCount = (): number => stmts.userCount.get()?.count ?? 0;
 
 export const getCode = (email: string): CodeRow | undefined => stmts.getCode.get(email);
 
-export const putCode = (email: string, hash: string, expiresAt: number): void => {
-  stmts.putCode.run(email, hash, expiresAt, Date.now());
+export const putCode = (email: string, hash: string, challengeHash: string, expiresAt: number): void => {
+  stmts.putCode.run(email, hash, challengeHash, expiresAt, Date.now());
+};
+
+export const setPasswordHash = (userId: number, hash: string): void => {
+  stmts.setPassword.run(hash, userId);
+};
+
+export const putReset = (userId: number, tokenHash: string, expiresAt: number): void => {
+  stmts.putReset.run(userId, tokenHash, expiresAt, Date.now());
+};
+
+export const findReset = (tokenHash: string): ResetRow | undefined => stmts.findReset.get(tokenHash);
+
+export const deleteReset = (userId: number): void => {
+  stmts.deleteReset.run(userId);
+};
+
+export const lockedUntil = (key: string): number => {
+  const row = stmts.getAttempt.get(key);
+  return row && row.locked_until > Date.now() ? row.locked_until : 0;
+};
+
+export const recordFailure = (key: string, max: number, windowMs: number, lockMs: number): { failures: number; lockedUntil: number } => {
+  const now = Date.now();
+  const row = stmts.getAttempt.get(key);
+  if (row && row.locked_until > now) return { failures: row.failures, lockedUntil: row.locked_until };
+  const fresh = !row || now - row.window_start >= windowMs;
+  const failures = fresh ? 1 : (row?.failures ?? 0) + 1;
+  const start = fresh ? now : (row?.window_start ?? now);
+  const until = failures >= max ? now + lockMs : 0;
+  stmts.putAttempt.run(key, failures, start, until);
+  return { failures, lockedUntil: until };
+};
+
+export const clearAttempts = (key: string): void => {
+  stmts.clearAttempt.run(key);
+};
+
+export const resetPassword = (userId: number): void => {
+  stmts.clearPassword.run(userId);
+};
+
+export const deleteSessionsExcept = (userId: number, keepId: string): void => {
+  stmts.deleteSessionsExcept.run(userId, keepId);
 };
 
 export const bumpCodeAttempts = (email: string): void => {
@@ -373,6 +485,8 @@ export const deleteUserSessions = (userId: number): void => {
 export const purgeExpired = (): void => {
   const now = Date.now();
   stmts.purgeCodes.run(now);
+  stmts.purgeResets.run(now);
+  stmts.purgeAttempts.run(now, now - 7 * 24 * 60 * 60 * 1000);
   stmts.purgeSessions.run(now);
 };
 
