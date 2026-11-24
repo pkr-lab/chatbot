@@ -1,5 +1,5 @@
 import { config } from "./config.js";
-import { getSetting, lastMessage, memoryRows, messagesSince, type MemoryRow } from "./db.js";
+import { getUserSetting, lastMessage, memoryRows, messagesSince, type MemoryRow } from "./db.js";
 
 export interface HistoryMessage {
   role: "user" | "assistant";
@@ -46,10 +46,10 @@ const formatDays = (days: number): string => (Number.isInteger(days) ? String(da
 
 export const memoryCutoff = (now = Date.now()): number => now - config.memoryDays * DAY_MS;
 
-export const getCustomInstructions = (): string => getSetting("customInstructions") ?? "";
+export const getCustomInstructions = (userId: number): string => getUserSetting(userId, "customInstructions") ?? "";
 
-export const isCrossChatMemoryEnabled = (): boolean => {
-  const stored = getSetting("crossChatMemory");
+export const isCrossChatMemoryEnabled = (userId: number): boolean => {
+  const stored = getUserSetting(userId, "crossChatMemory");
   if (stored === undefined) return config.crossChatMemory;
   return stored === "true";
 };
@@ -60,8 +60,8 @@ export interface MemoryDigest {
   messages: number;
 }
 
-export const buildMemoryDigest = (excludeChatId: string | null): MemoryDigest => {
-  const rows = memoryRows(memoryCutoff(), 800, excludeChatId);
+export const buildMemoryDigest = (userId: number, excludeChatId: string | null): MemoryDigest => {
+  const rows = memoryRows(userId, memoryCutoff(), 800, excludeChatId);
   let budget = config.memoryDigestChars;
   const picked: MemoryRow[] = [];
   for (const row of rows) {
@@ -97,7 +97,7 @@ export const buildMemoryDigest = (excludeChatId: string | null): MemoryDigest =>
   };
 };
 
-export const buildSystem = (chatId: string, now = Date.now()): SystemBlock[] => {
+export const buildSystem = (chatId: string, userId: number, now = Date.now()): SystemBlock[] => {
   const base = config.systemPrompt ?? defaultSystemPrompt;
   const blocks: SystemBlock[] = [
     {
@@ -106,7 +106,7 @@ export const buildSystem = (chatId: string, now = Date.now()): SystemBlock[] => 
     },
   ];
 
-  const custom = getCustomInstructions().trim();
+  const custom = getCustomInstructions(userId).trim();
   if (custom) {
     blocks.push({
       type: "text",
@@ -114,8 +114,8 @@ export const buildSystem = (chatId: string, now = Date.now()): SystemBlock[] => 
     });
   }
 
-  if (isCrossChatMemoryEnabled()) {
-    const digest = buildMemoryDigest(chatId);
+  if (isCrossChatMemoryEnabled(userId)) {
+    const digest = buildMemoryDigest(userId, chatId);
     if (digest.text) blocks.push({ type: "text", text: digest.text });
   }
 

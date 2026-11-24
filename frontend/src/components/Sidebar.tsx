@@ -16,7 +16,7 @@ interface SidebarProps {
   usage: AccountUsage[];
   open: boolean;
   memoryDays: number;
-  authRequired: boolean;
+  userEmail: string;
   themeMode: ThemeMode;
   onCycleTheme: () => void;
   onSelect: (id: string | null) => void;
@@ -143,7 +143,7 @@ export const Sidebar = ({
   usage,
   open,
   memoryDays,
-  authRequired,
+  userEmail,
   themeMode,
   onCycleTheme,
   onSelect,
@@ -211,7 +211,11 @@ export const Sidebar = ({
           )}
         </nav>
 
-        <UsagePanel accounts={usage} />
+        {usage.length > 0 ? <UsagePanel accounts={usage} /> : null}
+
+        <div className="whoami" title={userEmail}>
+          {userEmail}
+        </div>
 
         <div className="sidebar-foot">
           <button type="button" className="memory-chip" onClick={onOpenSettings} title="Gedächtnis und Einstellungen">
@@ -225,11 +229,9 @@ export const Sidebar = ({
             <button type="button" className="icon-button" onClick={onCycleTheme} aria-label={themeLabels[themeMode]} title={themeLabels[themeMode]}>
               <Icon name={themeIcons[themeMode]} size={18} />
             </button>
-            {authRequired ? (
-              <button type="button" className="icon-button" onClick={onLogout} aria-label="Abmelden" title="Abmelden">
-                <Icon name="logout" size={18} />
-              </button>
-            ) : null}
+            <button type="button" className="icon-button" onClick={onLogout} aria-label="Abmelden" title="Abmelden">
+              <Icon name="logout" size={18} />
+            </button>
           </div>
         </div>
       </aside>

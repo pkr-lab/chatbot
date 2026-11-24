@@ -10,6 +10,8 @@ Selbst gehosteter Chatbot mit Claude-Anbindung, Chatverlauf und Gedächtnis der 
 | [api.md](api.md) | REST-Schnittstelle und Server-Sent-Events-Protokoll |
 | [backend.md](backend.md) | Module des Backends im Detail |
 | [frontend.md](frontend.md) | Aufbau des Frontends, Zustandsverwaltung, Streaming |
+| [anmeldung.md](anmeldung.md) | Anmeldung per E-Mail-Code, Benutzerverwaltung, Mail-Anbindung |
+| [sicherheit.md](sicherheit.md) | Sicherheitsbewertung, Prüfergebnisse, Checkliste für den Betrieb im Internet |
 | [deployment.md](deployment.md) | Docker, Compose, Umgebungsvariablen, Reverse Proxy, Backup, Sicherheit |
 | [entwicklung.md](entwicklung.md) | Lokale Entwicklung, Build, Tests mit Mock-API |
 
@@ -19,7 +21,7 @@ Selbst gehosteter Chatbot mit Claude-Anbindung, Chatverlauf und Gedächtnis der 
 cp .env.example .env
 ```
 
-In `.env` den `ANTHROPIC_API_KEY` eintragen und für den Betrieb im Heimnetz einen `APP_PASSWORD` setzen.
+In `.env` den `ANTHROPIC_API_KEY`, `ADMIN_EMAIL` und die Mail-Anbindung eintragen.
 
 ```bash
 docker compose up -d --build

@@ -81,8 +81,19 @@ export interface ChatContext {
   memoryDays: number;
 }
 
+export interface AuthUser {
+  id: number;
+  email: string;
+  role: "admin" | "user";
+}
+
+export interface ManagedUser extends AuthUser {
+  created_at: number;
+  last_login: number | null;
+}
+
 export interface Bootstrap {
-  authRequired: boolean;
+  user: AuthUser;
   config: AppConfig;
   settings: Settings;
   chats: Chat[];

@@ -1,6 +1,6 @@
 # API
 
-Alle Pfade liegen unter `/api`. Anfragen und Antworten sind JSON, Fehler haben die Form `{ "error": "Text" }`. Ist `APP_PASSWORD` gesetzt, benötigen alle Pfade außer `/api/health` und `/api/auth/*` ein gültiges Sitzungscookie, sonst antwortet der Server mit `401`.
+Alle Pfade liegen unter `/api`. Anfragen und Antworten sind JSON, Fehler haben die Form `{ "error": "Text" }`. Alle Pfade außer `/api/health` und `/api/auth/*` benötigen ein gültiges Sitzungscookie, sonst antwortet der Server mit `401`. Chats, Einstellungen und Gedächtnis gehören jeweils einem Benutzer, fremde Chats ergeben `404`. Pfade unter `/api/admin` verlangen die Rolle Administrator (`403` sonst).
 
 ## Allgemein
 
@@ -18,9 +18,20 @@ Alle Pfade liegen unter `/api`. Anfragen und Antworten sind JSON, Fehler haben d
 
 | Methode | Pfad | Beschreibung |
 | --- | --- | --- |
-| GET | `/api/auth/status` | `{ required, authenticated }` |
-| POST | `/api/auth/login` | Body `{ password }`. Setzt das Cookie `chatbot_session` (30 Tage, `HttpOnly`, `SameSite=Lax`). Nach 10 Fehlversuchen je IP in 15 Minuten antwortet der Server mit `429` |
-| POST | `/api/auth/logout` | Löscht das Cookie |
+| GET | `/api/auth/me` | `{ authenticated, user? }` |
+| POST | `/api/auth/request` | Body `{ email }`. Antwortet immer `202`, egal ob die Adresse freigeschaltet ist. Nur für freigeschaltete Adressen wird ein Code gemailt |
+| POST | `/api/auth/verify` | Body `{ email, code }`. Bei Erfolg wird das Cookie gesetzt, sonst `401` mit immer gleicher Meldung |
+| POST | `/api/auth/logout` | Beendet die Sitzung serverseitig und löscht das Cookie |
+| POST | `/api/auth/logout-all` | Beendet alle Sitzungen des Benutzers |
+
+## Benutzerverwaltung (nur Administratoren)
+
+| Methode | Pfad | Beschreibung |
+| --- | --- | --- |
+| GET | `/api/admin/users` | Liste der freigeschalteten Benutzer |
+| POST | `/api/admin/users` | `{ email, role? }`, `201`, bei vorhandener Adresse `409` |
+| PATCH | `/api/admin/users/:id` | `{ role }`, der letzte Administrator kann nicht herabgestuft werden |
+| DELETE | `/api/admin/users/:id` | Entfernt Benutzer, Sitzungen und alle Chats. Nicht sich selbst, nicht den letzten Administrator |
 
 ## Chats
 
@@ -100,7 +111,7 @@ data: {"id":"...","title":"Begrüßung"}
 
 ## Sicherheit der Schnittstelle
 
-- Das Cookie ist `HttpOnly` und `SameSite=Lax`. Schreibende Pfade verlangen JSON, was einfache Cross-Site-Formulare ausschließt.
-- Passwort und Cookie-Signatur werden zeitkonstant verglichen.
+- Das Cookie ist `HttpOnly` und `SameSite=Strict`, hinter HTTPS zusätzlich `Secure` mit Präfix `__Host-`. Schreibende Anfragen mit fremder `Origin` oder `Sec-Fetch-Site: cross-site` werden mit `403` abgelehnt.
+- Codes werden zeitkonstant verglichen. API-Antworten sind `no-store`.
 - Antwortheader setzen eine strenge Content-Security-Policy, `X-Frame-Options: DENY` und `nosniff`.
 - Markdown aus Antworten wird ohne rohes HTML gerendert, Skripte im Text bleiben Text.

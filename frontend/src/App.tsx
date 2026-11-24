@@ -20,7 +20,7 @@ interface ShellProps {
 
 const Shell = ({ initial, onLoggedOut }: ShellProps) => {
   const app = useChatApp(initial, onLoggedOut);
-  const authRequired = initial.authRequired;
+  const user = initial.user;
   const theme = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -40,7 +40,10 @@ const Shell = ({ initial, onLoggedOut }: ShellProps) => {
   );
 
   const logout = useCallback(() => {
-    void api.logout().finally(onLoggedOut);
+    void api.logout().finally(() => {
+      window.history.replaceState(null, "", "/");
+      onLoggedOut();
+    });
   }, [onLoggedOut]);
 
   const title = app.activeChat?.title ?? "Neuer Chat";
@@ -57,7 +60,7 @@ const Shell = ({ initial, onLoggedOut }: ShellProps) => {
         open={sidebarOpen}
         usage={app.usage}
         memoryDays={config.memoryDays}
-        authRequired={authRequired}
+        userEmail={user.email}
         themeMode={theme.mode}
         onCycleTheme={theme.cycle}
         onSelect={select}
@@ -130,7 +133,7 @@ const Shell = ({ initial, onLoggedOut }: ShellProps) => {
 
       {settingsOpen ? (
         <Suspense fallback={null}>
-          <SettingsDialog settings={settings} config={config} onSave={app.setSettings} onClose={() => setSettingsOpen(false)} />
+          <SettingsDialog user={user} settings={settings} config={config} onSave={app.setSettings} onClose={() => setSettingsOpen(false)} />
         </Suspense>
       ) : null}
     </div>

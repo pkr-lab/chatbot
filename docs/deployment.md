@@ -18,8 +18,16 @@ Update: `git pull`, dann `docker compose up -d --build`. Die Daten bleiben im Vo
 | --- | --- | --- |
 | `ANTHROPIC_API_KEY` | leer | API-Schlüssel (Konto 1) |
 | `ANTHROPIC_API_KEYS` | leer | Mehrere Schlüssel, komma-getrennt, optional `Name=Schlüssel`. Reihenfolge ist Priorität |
-| `APP_PASSWORD` | leer | Aktiviert den Passwortschutz |
-| `SESSION_SECRET` | automatisch | Schlüssel für das Sitzungscookie, sonst in `/data/session.secret` erzeugt |
+| `ADMIN_EMAIL` | leer | **Pflicht beim ersten Start.** Erster Administrator, wird bei jedem Start sichergestellt |
+| `MAIL_TRANSPORT` | automatisch | `webhook`, `smtp` oder `console` (nur Test, schreibt Codes ins Log) |
+| `MAIL_WEBHOOK_URL`, `MAIL_WEBHOOK_TOKEN` | leer | Anbindung an einen bestehenden Mail-Dienst, siehe [anmeldung.md](anmeldung.md) |
+| `MAIL_FROM` | `Plaudi <no-reply@localhost>` | Absender |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE` | leer, `587`, leer, leer, `false` | SMTP-Zugang, STARTTLS wird erzwungen |
+| `SESSION_IDLE_DAYS`, `SESSION_MAX_DAYS` | `7`, `30` | Inaktivitäts- und Höchstdauer einer Sitzung |
+| `CODE_TTL_MINUTES` | `10` | Gültigkeit eines Codes |
+| `CODE_RESEND_SECONDS` | `30` | Wartezeit zwischen zwei Codes je Adresse |
+| `CODE_REQUESTS_PER_HOUR` | `5` | Codes pro Adresse und Stunde |
+| `SESSION_SECRET` | automatisch | Geheimnis zum Hashen der Codes (mind. 32 Zeichen), sonst in `/data/session.secret` erzeugt |
 | `COOKIE_SECURE` | `false` | Auf `true` setzen, wenn die Seite per HTTPS ausgeliefert wird |
 | `TRUST_PROXY` | `false` | Anzahl vorgeschalteter Proxys (`1`), damit das Login-Limit die echte IP sieht |
 | `HOST_PORT` | `3000` | Port auf dem Host (nur Compose) |
@@ -65,7 +73,7 @@ location / {
 }
 ```
 
-Hinter HTTPS `COOKIE_SECURE=true` und `TRUST_PROXY=1` setzen.
+Hinter HTTPS `COOKIE_SECURE=true` und `TRUST_PROXY=1` setzen. Ohne `TRUST_PROXY` sieht der Server nur die IP des Proxys, und die Begrenzungen gelten dann für alle Nutzer gemeinsam. Der Proxy muss `Host` unverändert weiterreichen, sonst lehnt der Herkunftsschutz Anfragen ab.
 
 ## Backup
 
@@ -79,7 +87,7 @@ Der Volume-Name ergibt sich aus dem Projektordner, `docker volume ls` zeigt ihn 
 
 ## Sicherheit
 
-- Ohne `APP_PASSWORD` kann jeder mit Netzwerkzugriff chatten und Kosten verursachen. Für alles außerhalb eines vertrauten Netzes das Passwort setzen und HTTPS verwenden.
+- Der Zugang ist immer geschützt. Für den Betrieb im Internet ist HTTPS Pflicht, siehe [sicherheit.md](sicherheit.md).
 - Ein Ausgabenlimit in der Anthropic Console begrenzt das Risiko zusätzlich.
 - API-Schlüssel stehen nur in `.env` und werden nie an den Browser gesendet. `.env` ist in `.gitignore` eingetragen.
 - Alle Chatinhalte der letzten Tage werden zur Beantwortung an die Anthropic-API gesendet.

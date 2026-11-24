@@ -7,7 +7,7 @@ Browser (React-SPA)
    │  REST (JSON) + SSE (Streaming)
    ▼
 Express-Server (Node.js 22)
-   ├─ Auth (optionales Passwort, signiertes Cookie)
+   ├─ Auth (E-Mail-Code, serverseitige Sitzungen, Benutzerverwaltung)
    ├─ REST-Routen  ──►  SQLite (better-sqlite3, /data/chatbot.sqlite)
    ├─ Chat-Runner  ──►  Anthropic Messages API (offizielles SDK, Streaming)
    └─ statische Auslieferung des gebauten Frontends
@@ -24,7 +24,8 @@ Ein Container enthält alles. Das Frontend wird beim Image-Build kompiliert und 
 │       ├── index.ts        Server-Start, Header, statische Dateien, Shutdown
 │       ├── config.ts       Umgebungsvariablen und Standardwerte
 │       ├── db.ts           SQLite-Schema und alle Datenbankzugriffe
-│       ├── auth.ts         Passwortschutz, Sessions, Login-Limit
+│       ├── auth.ts         Anmeldung, Sitzungen, Benutzerverwaltung
+│       ├── mailer.ts       Mailversand (Webhook, SMTP)
 │       ├── routes.ts       REST-Endpunkte
 │       ├── chat-runner.ts  Ablauf einer Antwort inklusive Streaming und Abbruch
 │       ├── claude.ts       Anbindung an die Anthropic-API, Titel, Fehlertexte
@@ -46,9 +47,13 @@ Ein Container enthält alles. Das Frontend wird beim Image-Build kompiliert und 
 
 | Tabelle | Spalten | Zweck |
 | --- | --- | --- |
-| `chats` | `id`, `title`, `pinned`, `created_at`, `updated_at` | Eine Unterhaltung |
+| `chats` | `id`, `user_id`, `title`, `pinned`, `created_at`, `updated_at` | Eine Unterhaltung |
 | `messages` | `id`, `chat_id`, `role`, `content`, `thinking`, `stop_reason`, `model`, `input_tokens`, `output_tokens`, `created_at` | Einzelne Nachrichten, bei Löschung des Chats werden sie mitgelöscht |
-| `settings` | `key`, `value` | Eigene Anweisungen und Gedächtnis-Schalter |
+| `users` | `id`, `email`, `role`, `created_at`, `last_login` | Freigeschaltete Adressen |
+| `sessions` | `id` (Hash), `user_id`, `created_at`, `last_seen`, `expires_at`, `ip`, `user_agent` | Serverseitige Sitzungen |
+| `login_codes` | `email`, `code_hash`, `expires_at`, `attempts` | Offene Einmalcodes, nur als Hash |
+| `user_settings` | `user_id`, `key`, `value` | Eigene Anweisungen und Gedächtnis-Schalter je Benutzer |
+| `settings` | `key`, `value` | Globale Werte (Limit-Anzeige) |
 
 Alle Zeitstempel sind Millisekunden seit 1970. Es werden nie Nachrichten automatisch gelöscht. Das Gedächtnisfenster bestimmt nur, was an Claude gesendet wird.
 

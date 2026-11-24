@@ -48,11 +48,12 @@ const refusalMessage = (category: string | null): string => {
 
 export interface RunOptions {
   chatId: string;
+  userId: number;
   userMessage?: MessageRow;
 }
 
 export const runCompletion = async (res: Response, options: RunOptions): Promise<void> => {
-  const { chatId, userMessage } = options;
+  const { chatId, userId, userMessage } = options;
   const controller = new AbortController();
   busy.set(chatId, controller);
   openStream(res);
@@ -69,7 +70,7 @@ export const runCompletion = async (res: Response, options: RunOptions): Promise
     if (userMessage) emit(res, "user", userMessage);
 
     const history = buildHistory(chatId);
-    const system = buildSystem(chatId);
+    const system = buildSystem(chatId, userId);
 
     let result;
     try {

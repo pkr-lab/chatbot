@@ -7,6 +7,6 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-In `.env` den `ANTHROPIC_API_KEY` eintragen und `APP_PASSWORD` setzen. Danach `http://<server>:3000` öffnen.
+In `.env` `ANTHROPIC_API_KEY`, `ADMIN_EMAIL` und die Mail-Anbindung eintragen. Die Anmeldung erfolgt per E-Mail-Code. Danach `http://<server>:3000` öffnen.
 
 Die vollständige Dokumentation steht in [docs](docs/README.md).

@@ -1,4 +1,4 @@
-import type { AccountUsage, AppConfig, AuthStatus, Bootstrap, Chat, ChatContext, ChatDetail, MemoryInfo, Message, Settings } from "./types";
+import type { AccountUsage, AuthUser, ManagedUser, AppConfig, Bootstrap, Chat, ChatContext, ChatDetail, MemoryInfo, Message, Settings } from "./types";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -41,9 +41,15 @@ const json = (body: unknown): { method: string; body: string } => ({ method: "PO
 export const api = {
   usage: () => request<AccountUsage[]>("/usage"),
   context: (id: string) => request<ChatContext>(`/chats/${id}/context`),
-  authStatus: () => request<AuthStatus>("/auth/status"),
-  login: (password: string) => request<{ ok: true }>("/auth/login", json({ password })),
+  requestCode: (email: string) => request<{ ok: true; ttlMinutes: number }>("/auth/request", json({ email })),
+  verifyCode: (email: string, code: string) => request<{ ok: true; user: AuthUser }>("/auth/verify", json({ email, code })),
   logout: () => request<{ ok: true }>("/auth/logout", { method: "POST" }),
+  logoutAll: () => request<{ ok: true }>("/auth/logout-all", { method: "POST" }),
+  users: () => request<ManagedUser[]>("/admin/users"),
+  addUser: (email: string, role: "admin" | "user") => request<ManagedUser>("/admin/users", json({ email, role })),
+  setRole: (id: number, role: "admin" | "user") =>
+    request<ManagedUser>(`/admin/users/${id}`, { method: "PATCH", body: JSON.stringify({ role }) }),
+  removeUser: (id: number) => request<void>(`/admin/users/${id}`, { method: "DELETE" }),
   config: () => request<AppConfig>("/config"),
   settings: () => request<Settings>("/settings"),
   saveSettings: (settings: Partial<Settings>) =>

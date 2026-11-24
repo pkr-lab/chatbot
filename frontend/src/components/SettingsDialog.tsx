@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { api } from "../api";
-import type { AppConfig, MemoryInfo, Settings } from "../types";
+import type { AppConfig, AuthUser, ManagedUser, MemoryInfo, Settings } from "../types";
 import { Icon } from "./Icon";
 
 interface SettingsDialogProps {
+  user: AuthUser;
   settings: Settings;
   config: AppConfig;
   onSave: (settings: Settings) => void;
@@ -12,13 +13,17 @@ interface SettingsDialogProps {
 
 const MAX_INSTRUCTIONS = 4000;
 
-export const SettingsDialog = ({ settings, config, onSave, onClose }: SettingsDialogProps) => {
+export const SettingsDialog = ({ user, settings, config, onSave, onClose }: SettingsDialogProps) => {
   const [instructions, setInstructions] = useState(settings.customInstructions);
   const [crossChat, setCrossChat] = useState(settings.crossChatMemory);
   const [memory, setMemory] = useState<MemoryInfo | null>(null);
   const [memoryError, setMemoryError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [newEmail, setNewEmail] = useState("");
+  const [newAdmin, setNewAdmin] = useState(false);
+  const [userError, setUserError] = useState<string | null>(null);
   const panel = useRef<HTMLDivElement>(null);
   const first = useRef<HTMLTextAreaElement>(null);
 
@@ -29,17 +34,59 @@ export const SettingsDialog = ({ settings, config, onSave, onClose }: SettingsDi
   }, []);
 
   useEffect(() => {
+    const onEscape = (event: globalThis.KeyboardEvent): void => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onEscape);
+    return () => window.removeEventListener("keydown", onEscape);
+  }, [onClose]);
+
+  useEffect(() => {
     api
       .memory()
       .then(setMemory)
       .catch(() => setMemoryError(true));
   }, []);
 
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (event.key === "Escape") {
-      onClose();
-      return;
+  useEffect(() => {
+    if (user.role === "admin") api.users().then(setUsers).catch(() => setUserError("Benutzer konnten nicht geladen werden."));
+  }, [user.role]);
+
+  const guard = async (action: () => Promise<void>): Promise<void> => {
+    setUserError(null);
+    try {
+      await action();
+    } catch (failure) {
+      setUserError(failure instanceof Error ? failure.message : "Aktion fehlgeschlagen.");
     }
+  };
+
+  const addUser = (): Promise<void> =>
+    guard(async () => {
+      const created = await api.addUser(newEmail, newAdmin ? "admin" : "user");
+      setUsers((previous) => [...previous, created]);
+      setNewEmail("");
+      setNewAdmin(false);
+    });
+
+  const toggleRole = (target: ManagedUser): Promise<void> =>
+    guard(async () => {
+      const updated = await api.setRole(target.id, target.role === "admin" ? "user" : "admin");
+      setUsers((previous) => previous.map((item) => (item.id === updated.id ? updated : item)));
+    });
+
+  const removeUser = (target: ManagedUser): Promise<void> =>
+    guard(async () => {
+      if (!window.confirm(`${target.email} entfernen? Alle Chats dieser Person werden gelöscht.`)) return;
+      await api.removeUser(target.id);
+      setUsers((previous) => previous.filter((item) => item.id !== target.id));
+    });
+
+  const logoutEverywhere = (): void => {
+    void api.logoutAll().finally(() => window.location.assign("/"));
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     if (event.key !== "Tab" || !panel.current) return;
     const focusable = panel.current.querySelectorAll<HTMLElement>("button, textarea, input, summary, [href]");
     const firstEl = focusable[0];
@@ -132,6 +179,70 @@ export const SettingsDialog = ({ settings, config, onSave, onClose }: SettingsDi
                 <pre>{memory.digest || "Keine Nachrichten in diesem Zeitraum."}</pre>
               </details>
             ) : null}
+          </section>
+
+          {user.role === "admin" ? (
+            <section>
+              <h3>Zugriff</h3>
+              <p className="hint">Nur hier eingetragene Adressen können sich per E-Mail-Code anmelden.</p>
+              <ul className="user-list">
+                {users.map((item) => (
+                  <li key={item.id}>
+                    <div>
+                      <strong>{item.email}</strong>
+                      <span>
+                        {item.role === "admin" ? "Administrator" : "Benutzer"}
+                        {item.last_login ? ` · zuletzt ${new Date(item.last_login).toLocaleDateString("de-DE")}` : " · noch nie angemeldet"}
+                      </span>
+                    </div>
+                    {item.id !== user.id ? (
+                      <div className="row-actions">
+                        <button type="button" className="text-button" onClick={() => void toggleRole(item)}>
+                          {item.role === "admin" ? "Zum Benutzer" : "Zum Admin"}
+                        </button>
+                        <button type="button" className="text-button danger" onClick={() => void removeUser(item)}>
+                          Entfernen
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="hint">du</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <form
+                className="add-user"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void addUser();
+                }}
+              >
+                <input
+                  type="email"
+                  value={newEmail}
+                  placeholder="name@beispiel.de"
+                  aria-label="Neue E-Mail-Adresse"
+                  maxLength={254}
+                  onChange={(event) => setNewEmail(event.target.value)}
+                />
+                <label className="inline-check">
+                  <input type="checkbox" checked={newAdmin} onChange={(event) => setNewAdmin(event.target.checked)} />
+                  <span>Admin</span>
+                </label>
+                <button type="submit" className="primary" disabled={!newEmail.trim()}>
+                  Hinzufügen
+                </button>
+              </form>
+              {userError ? <p className="over">{userError}</p> : null}
+            </section>
+          ) : null}
+
+          <section>
+            <h3>Konto</h3>
+            <p className="hint">Angemeldet als {user.email}.</p>
+            <button type="button" className="secondary fit" onClick={logoutEverywhere}>
+              Auf allen Geräten abmelden
+            </button>
           </section>
 
           <section>
