@@ -1,0 +1,23 @@
+services:
+  chatbot:
+    build: .
+    image: chatbot:latest
+    container_name: chatbot
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "${HOST_PORT:-3000}:3000"
+    volumes:
+      - chatbot-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  chatbot-data:
