@@ -106,6 +106,8 @@ Hinweise:
 
 | Variable | Standard | Bedeutung |
 | --- | --- | --- |
+| `AI_BACKEND` | automatisch | `api` (API-Schlüssel) oder `subscription` (Claude-Abo, siehe [claude-abo.md](claude-abo.md)). Ohne Angabe gilt `api`, wenn ein Schlüssel gesetzt ist, sonst `subscription` |
+| `CLAUDE_CODE_OAUTH_TOKEN` | leer | Token aus `claude setup-token` für `AI_BACKEND=subscription`, alternativ zur Eingabe unter Einstellungen |
 | `API_KEY` | leer | API-Schlüssel (Konto 1) |
 | `API_KEYS` | leer | Mehrere Schlüssel, komma-getrennt, optional `Name=Schlüssel`. Reihenfolge ist Priorität |
 | `ADMIN_PASSWORD` | leer | Startpasswort des ersten Administrators, wird nur gesetzt, wenn noch keins existiert |

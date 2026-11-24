@@ -29,7 +29,16 @@ export interface AppConfig {
   showThinking: boolean;
   maxMessageChars: number;
   apiConfigured: boolean;
+  backend: "api" | "subscription";
   accountCount: number;
+}
+
+export interface ClaudeLoginStatus {
+  backend: "api" | "subscription";
+  connected: boolean;
+  source: "env" | "ui" | null;
+  account: { status: "ok" | "limited" | "credit" | "invalid"; until: number | null };
+  limits: { type: string; status: "allowed" | "allowed_warning" | "rejected"; utilization: number | null; resetsAt: number | null }[];
 }
 
 export interface Settings {

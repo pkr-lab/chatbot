@@ -3,6 +3,7 @@ import { accountViews } from "./accounts.js";
 import { currentUser } from "./auth.js";
 import { dropTrailingAssistant, isBusy, runCompletion, stopChat } from "./chat-runner.js";
 import { getContextWindow, initialTitle } from "./llm.js";
+import { isConnected } from "./subscription.js";
 import { config } from "./config.js";
 import {
   createChat,
@@ -27,7 +28,8 @@ const MAX_INSTRUCTIONS = 4000;
 const publicConfig = () => ({
   showThinking: config.showThinking,
   maxMessageChars: config.maxMessageChars,
-  apiConfigured: config.hasCredentials,
+  apiConfigured: config.backend === "subscription" ? isConnected() : config.hasCredentials,
+  backend: config.backend,
   accountCount: config.accounts.length,
 });
 

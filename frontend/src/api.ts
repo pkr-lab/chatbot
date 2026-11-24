@@ -1,4 +1,4 @@
-import type { AccountUsage, AuthUser, ManagedUser, AppConfig, Bootstrap, Chat, ChatContext, ChatDetail, Message, Settings } from "./types";
+import type { ClaudeLoginStatus, AccountUsage, AuthUser, ManagedUser, AppConfig, Bootstrap, Chat, ChatContext, ChatDetail, Message, Settings } from "./types";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -54,6 +54,9 @@ export const api = {
   inviteUser: (id: number) => request<{ ok: true }>(`/admin/users/${id}/invite`, { method: "POST" }),
   logout: () => request<{ ok: true }>("/auth/logout", { method: "POST" }),
   logoutAll: () => request<{ ok: true }>("/auth/logout-all", { method: "POST" }),
+  claudeLogin: () => request<ClaudeLoginStatus>("/admin/claude"),
+  connectClaude: (token: string) => request<ClaudeLoginStatus>("/admin/claude", { method: "PUT", body: JSON.stringify({ token }) }),
+  disconnectClaude: () => request<ClaudeLoginStatus>("/admin/claude", { method: "DELETE" }),
   users: () => request<ManagedUser[]>("/admin/users"),
   addUser: (email: string, role: "admin" | "user") => request<ManagedUser>("/admin/users", json({ email, role })),
   setRole: (id: number, role: "admin" | "user") =>

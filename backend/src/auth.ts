@@ -4,6 +4,7 @@ import path from "node:path";
 import type { NextFunction, Request, Response, Router } from "express";
 import express from "express";
 import { config } from "./config.js";
+import { serverSecret } from "./secret.js";
 import {
   adminCount,
   adoptOrphans,
@@ -52,18 +53,7 @@ const HOUR_MS = 60 * 60 * 1000;
 const MAX_USERS = 200;
 const EMAIL_PATTERN = /^[^\s@<>()[\],;:"\\]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?\.[A-Za-z]{2,}$/;
 
-const loadSecret = (): string => {
-  if (config.sessionSecret && config.sessionSecret.length >= 32) return config.sessionSecret;
-  const file = path.join(config.dataDir, "session.secret");
-  const existing = fs.existsSync(file) ? fs.readFileSync(file, "utf8").trim() : "";
-  if (existing.length >= 32) return existing;
-  const created = crypto.randomBytes(48).toString("hex");
-  fs.mkdirSync(config.dataDir, { recursive: true });
-  fs.writeFileSync(file, created, { mode: 0o600 });
-  return created;
-};
-
-const secret = loadSecret();
+const secret = serverSecret;
 
 const sha256 = (value: string): string => crypto.createHash("sha256").update(value).digest("hex");
 

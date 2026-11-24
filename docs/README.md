@@ -6,6 +6,7 @@ Selbst gehosteter Chatbot mit KI-Anbindung, Chatverlauf je Chat. Das Projekt bes
 | --- | --- |
 | [architektur.md](architektur.md) | Überblick, Verzeichnisstruktur, Datenfluss einer Nachricht |
 | [ki-anbindung.md](ki-anbindung.md) | Wie die App mit dem KI-Dienst verbunden ist, Zugang, Parameter, Fehlerbehandlung, Kosten |
+| [claude-abo.md](claude-abo.md) | Betrieb mit Claude-Abo statt API-Schlüssel (nur persönlicher Test), Anmeldung in der Oberfläche |
 | [verlauf.md](verlauf.md) | Verlauf je Chat und Kontextbudget |
 | [api.md](api.md) | REST-Schnittstelle und Server-Sent-Events-Protokoll |
 | [backend.md](backend.md) | Module des Backends im Detail |
