@@ -31,7 +31,7 @@ const efforts = ["low", "medium", "high", "xhigh", "max"] as const;
 export type Effort = (typeof efforts)[number];
 
 const readEffort = (): Effort => {
-  const raw = read("CLAUDE_EFFORT")?.toLowerCase();
+  const raw = read("AI_EFFORT")?.toLowerCase();
   return (efforts as readonly string[]).includes(raw ?? "") ? (raw as Effort) : "medium";
 };
 
@@ -56,11 +56,10 @@ const readTrustProxy = (): number | false => {
 export interface AccountConfig {
   name: string;
   apiKey?: string;
-  authToken?: string;
 }
 
 const readAccounts = (): AccountConfig[] => {
-  const raw = [read("ANTHROPIC_API_KEYS"), read("ANTHROPIC_API_KEY")].filter(Boolean).join(",");
+  const raw = [read("API_KEYS"), read("API_KEY")].filter(Boolean).join(",");
   const accounts: AccountConfig[] = [];
   for (const part of raw.split(/[,\n]/)) {
     const item = part.trim();
@@ -71,12 +70,10 @@ const readAccounts = (): AccountConfig[] => {
     if (accounts.some((entry) => entry.apiKey === apiKey)) continue;
     accounts.push({ name: hasLabel ? item.slice(0, eq).trim() : `Konto ${accounts.length + 1}`, apiKey });
   }
-  const token = read("ANTHROPIC_AUTH_TOKEN");
-  if (token) accounts.push({ name: `Konto ${accounts.length + 1}`, authToken: token });
   return accounts;
 };
 
-const model = read("CLAUDE_MODEL") ?? "claude-opus-5-5";
+const model = read("AI_MODEL") ?? "claude-opus-5-5";
 const fallbackModels = ["claude-opus-5-5", "claude-opus-5", "claude-fable-5", "claude-sonnet-5-5"];
 const fallbackSetting = read("ENABLE_FALLBACK")?.toLowerCase() ?? "auto";
 
@@ -85,6 +82,7 @@ export const config = {
   dataDir: path.resolve(read("DATA_DIR") ?? "./data"),
   publicDir: path.resolve(read("PUBLIC_DIR") ?? "./public"),
   accounts: readAccounts(),
+  apiBaseUrl: read("API_BASE_URL"),
   hasCredentials: readAccounts().length > 0,
   model,
   effort: readEffort(),
@@ -94,15 +92,12 @@ export const config = {
     fallbackSetting === "auto"
       ? fallbackModels.some((prefix) => model.startsWith(prefix))
       : ["1", "true", "yes", "on"].includes(fallbackSetting),
-  memoryDays: readFloat("MEMORY_DAYS", 3),
-  crossChatMemory: readBool("CROSS_CHAT_MEMORY", true),
   maxContextChars: readInt("MAX_CONTEXT_CHARS", 400000),
-  memoryDigestChars: readInt("MEMORY_DIGEST_CHARS", 12000),
   showThinking: readBool("SHOW_THINKING", true),
   adminEmail: read("ADMIN_EMAIL")?.toLowerCase(),
   sessionSecret: read("SESSION_SECRET"),
-  sessionIdleDays: readFloat("SESSION_IDLE_DAYS", 7),
-  sessionMaxDays: readFloat("SESSION_MAX_DAYS", 30),
+  sessionIdleHours: readFloat("SESSION_IDLE_HOURS", 3),
+  sessionMaxHours: readFloat("SESSION_MAX_HOURS", 24),
   codeTtlMinutes: readFloat("CODE_TTL_MINUTES", 10),
   codeResendSeconds: readFloat("CODE_RESEND_SECONDS", 30),
   codeRequestsPerHour: readInt("CODE_REQUESTS_PER_HOUR", 5),

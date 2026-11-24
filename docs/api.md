@@ -9,10 +9,9 @@ Alle Pfade liegen unter `/api`. Anfragen und Antworten sind JSON, Fehler haben d
 | GET | `/api/health` | `{ ok, authRequired, apiConfigured, chats, messages }`, ohne Anmeldung, auch für den Docker-Healthcheck |
 | GET | `/api/bootstrap` | Alles für den Seitenstart in einer Anfrage: `{ authRequired, config, settings, chats, usage, detail }`. Mit `?chat=<id>` enthält `detail` zusätzlich Nachrichten, `busy` und `context` |
 | GET | `/api/usage` | Konten mit `{ name, active, status, until, limits }`, ohne Schlüssel |
-| GET | `/api/config` | `{ model, effort, memoryDays, showThinking, maxMessageChars, apiConfigured }` |
-| GET | `/api/settings` | `{ customInstructions, crossChatMemory }` |
+| GET | `/api/config` | `{ showThinking, maxMessageChars, apiConfigured, accountCount }` |
+| GET | `/api/settings` | `{ customInstructions }` |
 | PUT | `/api/settings` | Teilweise aktualisieren, Felder wie oben. Anweisungen höchstens 4000 Zeichen |
-| GET | `/api/memory` | `{ days, enabled, chats, messages, digest, totals, hasStoredPreference }` mit dem aktuellen Gedächtnisauszug |
 
 ## Anmeldung
 
@@ -44,7 +43,7 @@ Alle Pfade liegen unter `/api`. Anfragen und Antworten sind JSON, Fehler haben d
 | DELETE | `/api/chats/:id` | Löscht Chat und Nachrichten, `204`. Während einer Antwort `409` |
 | POST | `/api/chats/:id/messages` | Nachricht senden, Antwort als SSE-Stream (siehe unten) |
 | POST | `/api/chats/:id/regenerate` | Letzte Antwort verwerfen und neu erzeugen, ebenfalls als SSE-Stream. Funktioniert auch, wenn die letzte Nachricht noch unbeantwortet ist |
-| GET | `/api/chats/:id/context` | `{ usedTokens, windowTokens, historyMessages, totalMessages, historyChars, maxHistoryChars, memoryDays }` |
+| GET | `/api/chats/:id/context` | `{ usedTokens, windowTokens, historyMessages, totalMessages, historyChars, maxHistoryChars }` |
 | POST | `/api/chats/:id/stop` | Laufende Generierung abbrechen, `{ stopped: boolean }` |
 
 `:id` ist eine UUID, andere Werte ergeben `400`. Unbekannte Chats ergeben `404`.

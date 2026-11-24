@@ -1,4 +1,4 @@
-import type { AccountUsage, AuthUser, ManagedUser, AppConfig, Bootstrap, Chat, ChatContext, ChatDetail, MemoryInfo, Message, Settings } from "./types";
+import type { AccountUsage, AuthUser, ManagedUser, AppConfig, Bootstrap, Chat, ChatContext, ChatDetail, Message, Settings } from "./types";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -41,6 +41,7 @@ const json = (body: unknown): { method: string; body: string } => ({ method: "PO
 export const api = {
   usage: () => request<AccountUsage[]>("/usage"),
   context: (id: string) => request<ChatContext>(`/chats/${id}/context`),
+  me: () => request<{ authenticated: boolean }>("/auth/me"),
   requestCode: (email: string) => request<{ ok: true; ttlMinutes: number }>("/auth/request", json({ email })),
   verifyCode: (email: string, code: string) => request<{ ok: true; user: AuthUser }>("/auth/verify", json({ email, code })),
   logout: () => request<{ ok: true }>("/auth/logout", { method: "POST" }),
@@ -54,7 +55,6 @@ export const api = {
   settings: () => request<Settings>("/settings"),
   saveSettings: (settings: Partial<Settings>) =>
     request<Settings>("/settings", { method: "PUT", body: JSON.stringify(settings) }),
-  memory: () => request<MemoryInfo>("/memory"),
   listChats: (query = "") => request<Chat[]>(`/chats${query ? `?q=${encodeURIComponent(query)}` : ""}`),
   createChat: () => request<Chat>("/chats", { method: "POST" }),
   getChat: (id: string) => request<ChatDetail>(`/chats/${id}`),

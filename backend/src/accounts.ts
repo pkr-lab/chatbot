@@ -45,10 +45,10 @@ const CREDIT_COOLDOWN_MS = 60 * 60 * 1000;
 const INVALID_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 const DEFAULT_COOLDOWN_MS = 60 * 1000;
 
-const createClient = (account: { apiKey?: string; authToken?: string }): Anthropic =>
+const createClient = (account: { apiKey?: string }): Anthropic =>
   new Anthropic({
     apiKey: account.apiKey ?? null,
-    authToken: account.authToken ?? null,
+    baseURL: config.apiBaseUrl ?? null,
     maxRetries: config.accounts.length > 1 ? 0 : 1,
   });
 

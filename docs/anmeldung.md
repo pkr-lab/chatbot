@@ -15,7 +15,7 @@ Nur Adressen in der Tabelle `users`. Der erste Administrator kommt aus `ADMIN_EM
 
 Administratoren verwalten den Zugriff unter *Einstellungen → Zugriff*: Adresse hinzufügen (optional als Administrator), Rolle ändern, entfernen. Entfernen löscht Sitzungen und alle Chats der Person. Der letzte Administrator kann weder entfernt noch herabgestuft werden.
 
-Jeder Benutzer hat eigene Chats, eigene Einstellungen und ein eigenes Gedächtnis. Die Limit-Anzeige der API-Konten sehen nur Administratoren.
+Jeder Benutzer hat eigene Chats, eigene Einstellungen und einen eigenen Verlauf. Die Limit-Anzeige der API-Konten sehen nur Administratoren.
 
 ## Mail-Anbindung
 
@@ -48,5 +48,5 @@ Schreibt die Mail samt Code ins Log. Nur für Tests, nie im Internet-Betrieb.
 | Neue Codes je Adresse | alle 30 Sekunden, höchstens 5 pro Stunde |
 | Anforderungen je IP | 15 in 15 Minuten |
 | Prüfversuche je IP | 30 in 15 Minuten |
-| Sitzung | 7 Tage Inaktivität, 30 Tage absolut, beides einstellbar |
+| Sitzung | läuft nach 3 Stunden Inaktivität ab, höchstens 24 Stunden insgesamt, beides einstellbar |
 | Antworten | gleich für bekannte und unbekannte Adressen |

@@ -25,7 +25,7 @@ Für den Betrieb im Internet **geeignet, wenn die Bedingungen unten erfüllt sin
 
 1. **HTTPS über einen Reverse Proxy** (Caddy, nginx, Traefik), `COOKIE_SECURE=true`, `TRUST_PROXY=1`. Der Port 3000 gehört nicht ins Internet.
 2. **Mail-Zustellung absichern**: Wer das Postfach einer freigeschalteten Adresse übernimmt, kann sich anmelden. Für Administratoren Postfächer mit eigener 2FA verwenden. SPF, DKIM und DMARC der Absenderdomain einrichten.
-3. **Ausgabenlimit** in der Anthropic Console setzen. Ein gekaperter Zugang verursacht sonst Kosten.
+3. **Ausgabenlimit** in der Konsole des KI-Anbieters setzen. Ein gekaperter Zugang verursacht sonst Kosten.
 4. **`.env` und Volume schützen**: Schlüssel und Datenbank liegen im Klartext auf dem Host (Dateirechte, Festplattenverschlüsselung, Backups verschlüsseln).
 5. **Updates** regelmäßig einspielen (`docker compose up -d --build`, Basis-Image aktualisieren).
 
@@ -35,7 +35,7 @@ Für den Betrieb im Internet **geeignet, wenn die Bedingungen unten erfüllt sin
 - **Sperrung durch Dritte.** Wer eine freigeschaltete Adresse kennt, kann deren Code-Anforderungen verbrauchen (5 pro Stunde) und so die Anmeldung kurz blockieren. Der Zugriff selbst wird dadurch nicht möglich.
 - **Begrenzungen im Arbeitsspeicher.** Sie gelten je Container und werden bei einem Neustart zurückgesetzt. Mehrere Container hinter einem Load Balancer würden sie nicht teilen.
 - **Keine Protokollierung ins Audit-System.** Anmeldungen und Admin-Aktionen stehen im Container-Log, ohne Codes.
-- **Daten an Dritte.** Chatinhalte gehen zur Beantwortung an die Anthropic-API.
+- **Daten an Dritte.** Chatinhalte gehen zur Beantwortung an die KI-API.
 - **Keine Passwort-Wiederherstellung nötig, aber ein Notzugang fehlt.** Ist der Mailversand ausgefallen, ist die Anmeldung nicht möglich. Dann `MAIL_TRANSPORT=console` kurzzeitig setzen und den Code aus dem Log lesen.
 
 ## Umgesetzte Maßnahmen im Überblick

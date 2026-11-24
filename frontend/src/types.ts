@@ -26,9 +26,6 @@ export interface ChatDetail {
 }
 
 export interface AppConfig {
-  model: string;
-  effort: string;
-  memoryDays: number;
   showThinking: boolean;
   maxMessageChars: number;
   apiConfigured: boolean;
@@ -37,16 +34,6 @@ export interface AppConfig {
 
 export interface Settings {
   customInstructions: string;
-  crossChatMemory: boolean;
-}
-
-export interface MemoryInfo {
-  days: number;
-  enabled: boolean;
-  chats: number;
-  messages: number;
-  digest: string;
-  totals: { chats: number; messages: number };
 }
 
 export interface LimitEntry {
@@ -78,7 +65,6 @@ export interface ChatContext {
   totalMessages: number;
   historyChars: number;
   maxHistoryChars: number;
-  memoryDays: number;
 }
 
 export interface AuthUser {

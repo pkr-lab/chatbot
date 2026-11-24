@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { api } from "../api";
-import type { AppConfig, AuthUser, ManagedUser, MemoryInfo, Settings } from "../types";
+import type { AppConfig, AuthUser, ManagedUser, Settings } from "../types";
 import { Icon } from "./Icon";
 
 interface SettingsDialogProps {
@@ -15,9 +15,6 @@ const MAX_INSTRUCTIONS = 4000;
 
 export const SettingsDialog = ({ user, settings, config, onSave, onClose }: SettingsDialogProps) => {
   const [instructions, setInstructions] = useState(settings.customInstructions);
-  const [crossChat, setCrossChat] = useState(settings.crossChatMemory);
-  const [memory, setMemory] = useState<MemoryInfo | null>(null);
-  const [memoryError, setMemoryError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [users, setUsers] = useState<ManagedUser[]>([]);
@@ -40,13 +37,6 @@ export const SettingsDialog = ({ user, settings, config, onSave, onClose }: Sett
     window.addEventListener("keydown", onEscape);
     return () => window.removeEventListener("keydown", onEscape);
   }, [onClose]);
-
-  useEffect(() => {
-    api
-      .memory()
-      .then(setMemory)
-      .catch(() => setMemoryError(true));
-  }, []);
 
   useEffect(() => {
     if (user.role === "admin") api.users().then(setUsers).catch(() => setUserError("Benutzer konnten nicht geladen werden."));
@@ -105,7 +95,7 @@ export const SettingsDialog = ({ user, settings, config, onSave, onClose }: Sett
     setSaving(true);
     setSaveError(null);
     try {
-      const saved = await api.saveSettings({ customInstructions: instructions, crossChatMemory: crossChat });
+      const saved = await api.saveSettings({ customInstructions: instructions });
       onSave(saved);
       onClose();
     } catch (failure) {
@@ -115,7 +105,7 @@ export const SettingsDialog = ({ user, settings, config, onSave, onClose }: Sett
     }
   };
 
-  const dirty = instructions !== settings.customInstructions || crossChat !== settings.crossChatMemory;
+  const dirty = instructions !== settings.customInstructions;
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
@@ -137,7 +127,7 @@ export const SettingsDialog = ({ user, settings, config, onSave, onClose }: Sett
         <div className="modal-body">
           {!config.apiConfigured ? (
             <div className="banner error" role="alert">
-              <p>Auf dem Server ist kein ANTHROPIC_API_KEY gesetzt. Ohne Schlüssel kann Claude nicht antworten.</p>
+              <p>Auf dem Server ist kein API_KEY gesetzt. Ohne Schlüssel kann Plaudi nicht antworten.</p>
             </div>
           ) : null}
 
@@ -155,30 +145,6 @@ export const SettingsDialog = ({ user, settings, config, onSave, onClose }: Sett
             <div className="counter">
               {instructions.length} / {MAX_INSTRUCTIONS}
             </div>
-          </section>
-
-          <section>
-            <h3>Gedächtnis</h3>
-            <p className="hint">
-              Innerhalb eines Chats kennt Claude den Verlauf der letzten {config.memoryDays} Tage. Ältere Nachrichten bleiben für dich sichtbar,
-              werden aber nicht mehr an Claude gesendet.
-            </p>
-            <label className="switch">
-              <input type="checkbox" checked={crossChat} onChange={(event) => setCrossChat(event.target.checked)} />
-              <span className="track" aria-hidden="true" />
-              <span>Auch aus anderen Chats der letzten {config.memoryDays} Tage erinnern</span>
-            </label>
-            {memoryError ? (
-              <p className="hint">Gedächtnis konnte nicht geladen werden.</p>
-            ) : memory ? (
-              <details className="memory-preview">
-                <summary>
-                  Aktuell im Gedächtnis: {memory.chats} {memory.chats === 1 ? "Chat" : "Chats"}, {memory.messages}{" "}
-                  {memory.messages === 1 ? "Nachricht" : "Nachrichten"}
-                </summary>
-                <pre>{memory.digest || "Keine Nachrichten in diesem Zeitraum."}</pre>
-              </details>
-            ) : null}
           </section>
 
           {user.role === "admin" ? (
@@ -245,18 +211,6 @@ export const SettingsDialog = ({ user, settings, config, onSave, onClose }: Sett
             </button>
           </section>
 
-          <section>
-            <h3>Verbindung</h3>
-            <dl className="facts">
-              <dt>Modell</dt>
-              <dd>{config.model}</dd>
-              <dt>Denkaufwand</dt>
-              <dd>{config.effort}</dd>
-              <dt>Denkprozess anzeigen</dt>
-              <dd>{config.showThinking ? "Ja" : "Nein"}</dd>
-            </dl>
-            <p className="hint">Diese Werte werden über Umgebungsvariablen des Servers festgelegt.</p>
-          </section>
         </div>
 
         <footer>

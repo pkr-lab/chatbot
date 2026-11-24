@@ -16,14 +16,14 @@ Update: `git pull`, dann `docker compose up -d --build`. Die Daten bleiben im Vo
 
 | Variable | Standard | Bedeutung |
 | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | leer | API-Schlüssel (Konto 1) |
-| `ANTHROPIC_API_KEYS` | leer | Mehrere Schlüssel, komma-getrennt, optional `Name=Schlüssel`. Reihenfolge ist Priorität |
+| `API_KEY` | leer | API-Schlüssel (Konto 1) |
+| `API_KEYS` | leer | Mehrere Schlüssel, komma-getrennt, optional `Name=Schlüssel`. Reihenfolge ist Priorität |
 | `ADMIN_EMAIL` | leer | **Pflicht beim ersten Start.** Erster Administrator, wird bei jedem Start sichergestellt |
 | `MAIL_TRANSPORT` | automatisch | `webhook`, `smtp` oder `console` (nur Test, schreibt Codes ins Log) |
 | `MAIL_WEBHOOK_URL`, `MAIL_WEBHOOK_TOKEN` | leer | Anbindung an einen bestehenden Mail-Dienst, siehe [anmeldung.md](anmeldung.md) |
 | `MAIL_FROM` | `Plaudi <no-reply@localhost>` | Absender |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE` | leer, `587`, leer, leer, `false` | SMTP-Zugang, STARTTLS wird erzwungen |
-| `SESSION_IDLE_DAYS`, `SESSION_MAX_DAYS` | `7`, `30` | Inaktivitäts- und Höchstdauer einer Sitzung |
+| `SESSION_IDLE_HOURS`, `SESSION_MAX_HOURS` | `3`, `24` | Inaktivität, nach der eine Sitzung abläuft, und absolute Höchstdauer |
 | `CODE_TTL_MINUTES` | `10` | Gültigkeit eines Codes |
 | `CODE_RESEND_SECONDS` | `30` | Wartezeit zwischen zwei Codes je Adresse |
 | `CODE_REQUESTS_PER_HOUR` | `5` | Codes pro Adresse und Stunde |
@@ -31,16 +31,13 @@ Update: `git pull`, dann `docker compose up -d --build`. Die Daten bleiben im Vo
 | `COOKIE_SECURE` | `false` | Auf `true` setzen, wenn die Seite per HTTPS ausgeliefert wird |
 | `TRUST_PROXY` | `false` | Anzahl vorgeschalteter Proxys (`1`), damit das Login-Limit die echte IP sieht |
 | `HOST_PORT` | `3000` | Port auf dem Host (nur Compose) |
-| `CLAUDE_MODEL` | `claude-opus-5-5` | Modell |
-| `CLAUDE_EFFORT` | `medium` | `low`, `medium`, `high`, `xhigh`, `max` |
+| `AI_MODEL` | `claude-opus-5-5` | Modell |
+| `AI_EFFORT` | `medium` | `low`, `medium`, `high`, `xhigh`, `max` |
 | `MAX_TOKENS` | `64000` | Obergrenze je Antwort, Denken zählt mit |
 | `ENABLE_FALLBACK` | `auto` | Serverseitiger Fallback bei Ablehnungen: `auto`, `true`, `false` |
 | `TITLE_MODEL` | `claude-haiku-5-5` | Modell für Chat-Titel |
 | `SHOW_THINKING` | `true` | Zusammenfassung des Denkprozesses anzeigen |
-| `MEMORY_DAYS` | `3` | Länge des Gedächtnisfensters in Tagen |
-| `CROSS_CHAT_MEMORY` | `true` | Startwert für die Erinnerung an andere Chats |
 | `MAX_CONTEXT_CHARS` | `400000` | Verlaufsbudget je Anfrage in Zeichen |
-| `MEMORY_DIGEST_CHARS` | `12000` | Budget des Auszugs aus anderen Chats |
 | `MAX_MESSAGE_CHARS` | `100000` | Maximale Länge einer Nutzernachricht |
 | `SYSTEM_PROMPT` | eingebaut | Ersetzt den Basisprompt |
 | `TZ` | `Europe/Berlin` | Zeitzone für Datum im Prompt und Uhrzeiten |
@@ -88,6 +85,6 @@ Der Volume-Name ergibt sich aus dem Projektordner, `docker volume ls` zeigt ihn 
 ## Sicherheit
 
 - Der Zugang ist immer geschützt. Für den Betrieb im Internet ist HTTPS Pflicht, siehe [sicherheit.md](sicherheit.md).
-- Ein Ausgabenlimit in der Anthropic Console begrenzt das Risiko zusätzlich.
+- Ein Ausgabenlimit in der Konsole des KI-Anbieters begrenzt das Risiko zusätzlich.
 - API-Schlüssel stehen nur in `.env` und werden nie an den Browser gesendet. `.env` ist in `.gitignore` eingetragen.
-- Alle Chatinhalte der letzten Tage werden zur Beantwortung an die Anthropic-API gesendet.
+- Alle Chatinhalte werden zur Beantwortung an die KI-API gesendet.

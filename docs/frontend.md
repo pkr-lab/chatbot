@@ -13,10 +13,10 @@ React 19, TypeScript, Vite. Quellcode in `frontend/src`, Build nach `frontend/di
 | `hooks/useTheme.ts` | Hell, Dunkel oder System, gespeichert im `localStorage` |
 | `components/Sidebar.tsx` | Logo, Chatliste mit Gruppen, Suche, Umbenennen, Anheften, Löschen |
 | `components/UsagePanel.tsx` | Limits je Konto mit Balken und Reset-Zeit |
-| `components/ContextMeter.tsx` | Kontextbelegung und Gedächtnis-Auslastung unter dem Eingabefeld |
+| `components/ContextMeter.tsx` | Kontextbelegung und Verlauf unter dem Eingabefeld |
 | `components/ChatView.tsx` | Nachrichtenliste, Auto-Scroll, Leerzustand, Fehler- und Hinweisbanner |
 | `components/Markdown.tsx` | Markdown mit GFM, Syntaxhervorhebung, Kopieren-Button an Codeblöcken |
-| `components/SettingsDialog.tsx` | Eigene Anweisungen, Gedächtnisschalter, Vorschau, Verbindungsdaten |
+| `components/SettingsDialog.tsx` | Eigene Anweisungen, Benutzerverwaltung, Abmelden auf allen Geräten |
 
 ## Ablauf und Zustand
 

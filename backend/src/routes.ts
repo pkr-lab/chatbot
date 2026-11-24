@@ -2,14 +2,12 @@ import express, { type Response, type Router } from "express";
 import { accountViews } from "./accounts.js";
 import { currentUser } from "./auth.js";
 import { dropTrailingAssistant, isBusy, runCompletion, stopChat } from "./chat-runner.js";
-import { getContextWindow, initialTitle } from "./claude.js";
+import { getContextWindow, initialTitle } from "./llm.js";
 import { config } from "./config.js";
 import {
-  counts,
   createChat,
   deleteChat,
   getOwnedChat,
-  getUserSetting,
   insertMessage,
   listChats,
   listMessages,
@@ -20,16 +18,13 @@ import {
   touchChat,
   type ChatRow,
 } from "./db.js";
-import { buildHistory, buildMemoryDigest, getCustomInstructions, isCrossChatMemoryEnabled } from "./prompt.js";
+import { buildHistory, getCustomInstructions } from "./prompt.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_TITLE = 120;
 const MAX_INSTRUCTIONS = 4000;
 
 const publicConfig = () => ({
-  model: config.model,
-  effort: config.effort,
-  memoryDays: config.memoryDays,
   showThinking: config.showThinking,
   maxMessageChars: config.maxMessageChars,
   apiConfigured: config.hasCredentials,
@@ -40,7 +35,6 @@ const usageFor = (res: Response) => (currentUser(res).role === "admin" ? account
 
 const settingsFor = (userId: number) => ({
   customInstructions: getCustomInstructions(userId),
-  crossChatMemory: isCrossChatMemoryEnabled(userId),
 });
 
 const contextOf = async (chatId: string) => {
@@ -59,7 +53,6 @@ const contextOf = async (chatId: string) => {
     totalMessages: messages.length,
     historyChars,
     maxHistoryChars: config.maxContextChars,
-    memoryDays: config.memoryDays,
   };
 };
 
@@ -112,28 +105,7 @@ export const apiRouter = (): Router => {
       }
       setUserSetting(userId, "customInstructions", body.customInstructions);
     }
-    if (body.crossChatMemory !== undefined) {
-      if (typeof body.crossChatMemory !== "boolean") {
-        res.status(400).json({ error: "crossChatMemory muss ein Boolean sein." });
-        return;
-      }
-      setUserSetting(userId, "crossChatMemory", String(body.crossChatMemory));
-    }
     res.json(settingsFor(userId));
-  });
-
-  router.get("/memory", (_req, res) => {
-    const userId = currentUser(res).id;
-    const digest = buildMemoryDigest(userId, null);
-    res.json({
-      days: config.memoryDays,
-      enabled: isCrossChatMemoryEnabled(userId),
-      chats: digest.chats,
-      messages: digest.messages,
-      digest: digest.text,
-      totals: counts(userId),
-      hasStoredPreference: getUserSetting(userId, "crossChatMemory") !== undefined,
-    });
   });
 
   router.get("/chats", (req, res) => {

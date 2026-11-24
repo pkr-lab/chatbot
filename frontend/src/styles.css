@@ -1573,3 +1573,7 @@ p {
 .login .over {
   color: var(--danger);
 }
+
+.memory-chip.static {
+  cursor: default;
+}

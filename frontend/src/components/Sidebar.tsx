@@ -15,7 +15,6 @@ interface SidebarProps {
   generatingId: string | null;
   usage: AccountUsage[];
   open: boolean;
-  memoryDays: number;
   userEmail: string;
   themeMode: ThemeMode;
   onCycleTheme: () => void;
@@ -142,7 +141,6 @@ export const Sidebar = ({
   generatingId,
   usage,
   open,
-  memoryDays,
   userEmail,
   themeMode,
   onCycleTheme,
@@ -218,10 +216,10 @@ export const Sidebar = ({
         </div>
 
         <div className="sidebar-foot">
-          <button type="button" className="memory-chip" onClick={onOpenSettings} title="Gedächtnis und Einstellungen">
+          <span className="memory-chip static">
             <Icon name="brain" size={15} />
-            <span>Gedächtnis: {memoryDays === 1 ? "24 Stunden" : `${memoryDays} Tage`}</span>
-          </button>
+            <span>Verlauf je Chat</span>
+          </span>
           <div className="foot-buttons">
             <button type="button" className="icon-button" onClick={onOpenSettings} aria-label="Einstellungen" title="Einstellungen">
               <Icon name="settings" size={18} />

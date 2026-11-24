@@ -1,6 +1,6 @@
 import { memo } from "react";
 import type { Message } from "../types";
-import { formatDateTime, formatTokens, modelLabel } from "../utils";
+import { formatDateTime, formatTokens } from "../utils";
 import { CopyButton } from "./CopyButton";
 import { Icon } from "./Icon";
 import { LazyMarkdown } from "./LazyMarkdown";
@@ -42,12 +42,10 @@ export const MessageItem = memo(({ message, showThinking, canRegenerate, onRegen
   }
 
   const note = stopNote(message.stop_reason);
-  const meta = [modelLabel(message.model), message.output_tokens ? `${formatTokens(message.output_tokens)} Tokens` : ""]
-    .filter(Boolean)
-    .join(" · ");
+  const meta = message.output_tokens ? `${formatTokens(message.output_tokens)} Tokens` : "";
 
   return (
-    <article className="message assistant" aria-label="Antwort von Claude">
+    <article className="message assistant" aria-label="Antwort von Plaudi">
       {showThinking && message.thinking ? <Thinking text={message.thinking} /> : null}
       <LazyMarkdown text={message.content} />
       {note ? <p className="note">{note}</p> : null}

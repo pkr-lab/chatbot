@@ -9,7 +9,7 @@ Browser (React-SPA)
 Express-Server (Node.js 22)
    ├─ Auth (E-Mail-Code, serverseitige Sitzungen, Benutzerverwaltung)
    ├─ REST-Routen  ──►  SQLite (better-sqlite3, /data/chatbot.sqlite)
-   ├─ Chat-Runner  ──►  Anthropic Messages API (offizielles SDK, Streaming)
+   ├─ Chat-Runner  ──►  Messages-API des KI-Dienstes (offizielles SDK, Streaming)
    └─ statische Auslieferung des gebauten Frontends
 ```
 
@@ -28,8 +28,8 @@ Ein Container enthält alles. Das Frontend wird beim Image-Build kompiliert und 
 │       ├── mailer.ts       Mailversand (Webhook, SMTP)
 │       ├── routes.ts       REST-Endpunkte
 │       ├── chat-runner.ts  Ablauf einer Antwort inklusive Streaming und Abbruch
-│       ├── claude.ts       Anbindung an die Anthropic-API, Titel, Fehlertexte
-│       └── prompt.ts       Systemprompt, Gedächtnis und Verlaufsfenster
+│       ├── llm.ts       Anbindung an die KI-API, Titel, Fehlertexte
+│       └── prompt.ts       Systemprompt und Verlauf je Chat
 ├── frontend/
 │   └── src/
 │       ├── App.tsx         Anmeldung und Gesamtlayout
@@ -52,17 +52,17 @@ Ein Container enthält alles. Das Frontend wird beim Image-Build kompiliert und 
 | `users` | `id`, `email`, `role`, `created_at`, `last_login` | Freigeschaltete Adressen |
 | `sessions` | `id` (Hash), `user_id`, `created_at`, `last_seen`, `expires_at`, `ip`, `user_agent` | Serverseitige Sitzungen |
 | `login_codes` | `email`, `code_hash`, `expires_at`, `attempts` | Offene Einmalcodes, nur als Hash |
-| `user_settings` | `user_id`, `key`, `value` | Eigene Anweisungen und Gedächtnis-Schalter je Benutzer |
+| `user_settings` | `user_id`, `key`, `value` | Eigene Anweisungen je Benutzer |
 | `settings` | `key`, `value` | Globale Werte (Limit-Anzeige) |
 
-Alle Zeitstempel sind Millisekunden seit 1970. Es werden nie Nachrichten automatisch gelöscht. Das Gedächtnisfenster bestimmt nur, was an Claude gesendet wird.
+Alle Zeitstempel sind Millisekunden seit 1970. Es werden nie Nachrichten automatisch gelöscht. Das Kontextbudget bestimmt nur, was an das Modell gesendet wird.
 
 ## Ablauf einer Nachricht
 
 1. Das Frontend sendet `POST /api/chats/:id/messages`. Gibt es noch keinen Chat, legt es zuvor einen an.
 2. Der Server speichert die Nutzernachricht und öffnet einen SSE-Stream.
-3. `prompt.ts` baut aus der Datenbank den Systemprompt (Datum, eigene Anweisungen, Gedächtnisauszug) und den Verlauf der letzten Tage.
-4. `claude.ts` ruft die Anthropic-API im Streaming-Modus auf. Jeder Textabschnitt wird sofort als `delta`-Event an den Browser gereicht.
+3. `prompt.ts` baut aus der Datenbank den Systemprompt (Datum, eigene Anweisungen) und den Verlauf des Chats.
+4. `llm.ts` ruft die KI-API im Streaming-Modus auf. Jeder Textabschnitt wird sofort als `delta`-Event an den Browser gereicht.
 5. Nach Abschluss wird die Antwort gespeichert und als `done` gesendet. Beim ersten Austausch erzeugt ein kleines Modell zusätzlich einen Titel (`title`-Event).
 6. Bricht die Verbindung zum Browser ab, läuft die Generierung auf dem Server zu Ende und die Antwort wird trotzdem gespeichert. Das Frontend lädt sie beim nächsten Abruf nach.
 
@@ -71,5 +71,5 @@ Alle Zeitstempel sind Millisekunden seit 1970. Es werden nie Nachrichten automat
 - **Antwort überlebt Verbindungsabbrüche.** Mobilgeräte trennen Verbindungen im Hintergrund. Abbrechen geschieht ausschließlich über den Stopp-Button (`POST /api/chats/:id/stop`).
 - **Ein Lauf pro Chat.** Eine zweite Anfrage im selben Chat erhält `409`.
 - **Fehler werden nicht als Nachricht gespeichert.** Sie erscheinen als Hinweis mit Wiederholen-Schaltfläche und verfälschen den Verlauf nicht.
-- **Denkprozess nur zur Anzeige.** Er wird gespeichert, aber nie an Claude zurückgesendet. Das ist erlaubt, weil keine Tool-Aufrufe im Spiel sind.
+- **Denkprozess nur zur Anzeige.** Er wird gespeichert, aber nie an Plaudi zurückgesendet. Das ist erlaubt, weil keine Tool-Aufrufe im Spiel sind.
 - **Keine Kommentare im Quelltext.** Diese Dokumentation ersetzt sie.

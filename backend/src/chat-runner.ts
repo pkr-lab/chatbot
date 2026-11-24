@@ -10,7 +10,7 @@ import {
   type ChatRow,
   type MessageRow,
 } from "./db.js";
-import { describeError, generateTitle, streamReply, StreamAbortedError } from "./claude.js";
+import { describeError, generateTitle, streamReply, StreamAbortedError } from "./llm.js";
 import { buildHistory, buildSystem } from "./prompt.js";
 
 const HEARTBEAT_MS = 15000;
@@ -70,7 +70,7 @@ export const runCompletion = async (res: Response, options: RunOptions): Promise
     if (userMessage) emit(res, "user", userMessage);
 
     const history = buildHistory(chatId);
-    const system = buildSystem(chatId, userId);
+    const system = buildSystem(userId);
 
     let result;
     try {
@@ -98,7 +98,7 @@ export const runCompletion = async (res: Response, options: RunOptions): Promise
         return;
       }
       const described = describeError(error);
-      console.error("[claude]", error instanceof Error ? error.message : error);
+      console.error("[llm]", error instanceof Error ? error.message : error);
       emit(res, "error", { message: described.message });
       return;
     }
@@ -112,7 +112,7 @@ export const runCompletion = async (res: Response, options: RunOptions): Promise
       emit(res, "error", {
         message:
           result.stopReason === "max_tokens"
-            ? "Das Token-Limit wurde erreicht, bevor eine Antwort entstanden ist. Erhöhe MAX_TOKENS oder senke CLAUDE_EFFORT."
+            ? "Das Token-Limit wurde erreicht, bevor eine Antwort entstanden ist. Erhöhe MAX_TOKENS oder senke AI_EFFORT."
             : "Das Modell hat keine Antwort geliefert. Bitte erneut versuchen.",
       });
       return;

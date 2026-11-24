@@ -82,6 +82,23 @@ export const useChatApp = (initial: Bootstrap, onUnauthorized: () => void): Chat
     return () => setUnauthorizedHandler(null);
   }, [onUnauthorized]);
 
+  useEffect(() => {
+    const check = (): void => {
+      api.me().then((status) => {
+        if (!status.authenticated) onUnauthorized();
+      }, () => undefined);
+    };
+    const onVisible = (): void => {
+      if (document.visibilityState === "visible") check();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    const timer = window.setInterval(check, 5 * 60 * 1000);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(timer);
+    };
+  }, [onUnauthorized]);
+
   const upsertChat = useCallback((chat: Chat) => {
     setChats((previous) =>
       sortChats(previous.some((item) => item.id === chat.id) ? previous.map((item) => (item.id === chat.id ? chat : item)) : [chat, ...previous]),

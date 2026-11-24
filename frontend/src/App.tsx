@@ -9,7 +9,6 @@ import { Sidebar } from "./components/Sidebar";
 import { useChatApp } from "./hooks/useChatApp";
 import { useTheme } from "./hooks/useTheme";
 import type { Bootstrap } from "./types";
-import { modelLabel } from "./utils";
 
 const SettingsDialog = lazy(() => import("./components/SettingsDialog").then((module) => ({ default: module.SettingsDialog })));
 
@@ -59,7 +58,6 @@ const Shell = ({ initial, onLoggedOut }: ShellProps) => {
         generatingId={app.streamingChatId}
         open={sidebarOpen}
         usage={app.usage}
-        memoryDays={config.memoryDays}
         userEmail={user.email}
         themeMode={theme.mode}
         onCycleTheme={theme.cycle}
@@ -84,7 +82,6 @@ const Shell = ({ initial, onLoggedOut }: ShellProps) => {
             <Logo height={24} />
           </span>
           <h1 className="topbar-title">{title}</h1>
-          <span className="model-badge">{modelLabel(config.model)}</span>
           <button type="button" className="icon-button menu" onClick={() => select(null)} aria-label="Neuer Chat">
             <Icon name="plus" size={20} />
           </button>
@@ -92,7 +89,7 @@ const Shell = ({ initial, onLoggedOut }: ShellProps) => {
 
         {!config.apiConfigured ? (
           <div className="banner error top" role="alert">
-            <p>Kein ANTHROPIC_API_KEY auf dem Server gesetzt. Claude kann so nicht antworten.</p>
+            <p>Auf dem Server ist kein API_KEY gesetzt. Plaudi kann so nicht antworten.</p>
           </div>
         ) : null}
 
@@ -113,8 +110,7 @@ const Shell = ({ initial, onLoggedOut }: ShellProps) => {
           loading={app.loading}
           remoteBusy={app.remoteBusy}
           showThinking={config.showThinking}
-          memoryDays={config.memoryDays}
-          onRegenerate={() => void app.regenerate()}
+            onRegenerate={() => void app.regenerate()}
           onDismissError={app.dismissError}
           onSuggestion={setDraft}
         />

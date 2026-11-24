@@ -88,7 +88,7 @@ const server = spawn("node_modules/.bin/tsx", ["src/index.ts"], {
     MAIL_TRANSPORT: "webhook",
     MAIL_WEBHOOK_URL: `http://127.0.0.1:${MAIL_PORT}/mail`,
     MAIL_WEBHOOK_TOKEN: "geheim-token",
-    ANTHROPIC_API_KEY: "test",
+    API_KEY: "test",
     TRUST_PROXY: "1",
     CODE_TTL_MINUTES: "0.05",
     CODE_RESEND_SECONDS: "1",

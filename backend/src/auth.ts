@@ -38,7 +38,7 @@ const COOKIE_NAME = config.secureCookies ? "__Host-plaudi_session" : "plaudi_ses
 const MAX_ATTEMPTS = 5;
 const RESEND_COOLDOWN_MS = config.codeResendSeconds * 1000;
 const TOUCH_INTERVAL_MS = 60 * 1000;
-const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
 const MAX_USERS = 200;
 const EMAIL_PATTERN = /^[^\s@<>()[\],;:"\\]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?\.[A-Za-z]{2,}$/;
 
@@ -122,7 +122,7 @@ const cookieOptions = {
 };
 
 const sessionLifetime = (createdAt: number, now: number): number =>
-  Math.min(now + config.sessionIdleDays * DAY_MS, createdAt + config.sessionMaxDays * DAY_MS);
+  Math.min(now + config.sessionIdleHours * HOUR_MS, createdAt + config.sessionMaxHours * HOUR_MS);
 
 const authenticate = (req: Request): { user: AuthUser; sessionId: string } | null => {
   const token = req.cookies?.[COOKIE_NAME];
@@ -131,7 +131,7 @@ const authenticate = (req: Request): { user: AuthUser; sessionId: string } | nul
   const session = findSession(id);
   if (!session) return null;
   const now = Date.now();
-  if (session.expires_at <= now || session.created_at + config.sessionMaxDays * DAY_MS <= now) {
+  if (session.expires_at <= now || session.created_at + config.sessionMaxHours * HOUR_MS <= now) {
     deleteSession(id);
     return null;
   }
@@ -278,7 +278,7 @@ export const authRouter = (): Router => {
     const token = crypto.randomBytes(32).toString("base64url");
     const now = Date.now();
     insertSession(sha256(token), user.id, sessionLifetime(now, now), req.ip ?? null, req.get("user-agent") ?? null);
-    res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: config.sessionMaxDays * DAY_MS });
+    res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: config.sessionMaxHours * HOUR_MS });
     console.log(`[auth] Anmeldung von ${user.email}`);
     res.json({ ok: true, user: publicUser({ id: user.id, email: user.email, role: user.role }) });
   });

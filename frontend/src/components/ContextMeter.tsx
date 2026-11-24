@@ -7,8 +7,8 @@ export const ContextMeter = ({ context }: { context: ChatContext | null }) => {
   const percent = share < 0.01 && context.usedTokens > 0 ? "<1" : String(Math.round(share * 100));
   const trimmed = context.historyMessages < context.totalMessages;
   const title = [
-    `Kontextfenster des Modells: ${context.usedTokens.toLocaleString("de-DE")} von ${context.windowTokens.toLocaleString("de-DE")} Token belegt.`,
-    `Gedächtnis (${context.memoryDays} Tage): ${context.historyMessages} von ${context.totalMessages} Nachrichten werden an Claude gesendet.`,
+    `Kontextfenster: ${context.usedTokens.toLocaleString("de-DE")} von ${context.windowTokens.toLocaleString("de-DE")} Token belegt.`,
+    `Verlauf: ${context.historyMessages} von ${context.totalMessages} Nachrichten werden berücksichtigt.`,
     `Verlaufsbudget: ${context.historyChars.toLocaleString("de-DE")} von ${context.maxHistoryChars.toLocaleString("de-DE")} Zeichen.`,
   ].join("\n");
   return (
@@ -18,7 +18,7 @@ export const ContextMeter = ({ context }: { context: ChatContext | null }) => {
       </div>
       <span>
         Kontext {formatCompact(context.usedTokens)} / {formatCompact(context.windowTokens)} ({percent} %)
-        {trimmed ? ` · Gedächtnis ${context.historyMessages}/${context.totalMessages} Nachr.` : ""}
+        {trimmed ? ` · Verlauf ${context.historyMessages}/${context.totalMessages} Nachr.` : ""}
       </span>
     </div>
   );

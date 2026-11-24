@@ -58,7 +58,7 @@ export const Composer = ({ value, onChange, onSend, onStop, generating, maxChars
           ref={area}
           value={value}
           rows={1}
-          placeholder="Nachricht an Claude…"
+          placeholder="Nachricht an Plaudi…"
           aria-label="Nachricht"
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={onKeyDown}

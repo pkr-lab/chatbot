@@ -168,29 +168,29 @@ export const describeError = (error: unknown): { status: number; message: string
     };
   }
   if (error instanceof Anthropic.AuthenticationError) {
-    return { status: 502, message: "Der Anthropic-API-Schlüssel fehlt oder ist ungültig. Prüfe ANTHROPIC_API_KEY." };
+    return { status: 502, message: "Der API-Schlüssel fehlt oder ist ungültig. Prüfe API_KEY." };
   }
   if (error instanceof Anthropic.PermissionDeniedError) {
     return { status: 502, message: "Der API-Schlüssel hat keine Berechtigung für dieses Modell." };
   }
   if (error instanceof Anthropic.RateLimitError) {
-    return { status: 429, message: "Das Anfragelimit der Anthropic-API ist erreicht. Bitte gleich noch einmal versuchen." };
+    return { status: 429, message: "Das Anfragelimit des KI-Dienstes ist erreicht. Bitte gleich noch einmal versuchen." };
   }
   if (error instanceof Anthropic.BadRequestError) {
     return { status: 502, message: `Die Anfrage wurde von der API abgelehnt: ${error.message}` };
   }
   if (error instanceof Anthropic.NotFoundError) {
-    return { status: 502, message: `Modell nicht gefunden: ${config.model}. Prüfe CLAUDE_MODEL.` };
+    return { status: 502, message: `Modell nicht gefunden: ${config.model}. Prüfe AI_MODEL.` };
   }
   if (error instanceof Anthropic.APIConnectionError) {
-    return { status: 502, message: "Keine Verbindung zur Anthropic-API. Prüfe die Internetverbindung des Servers." };
+    return { status: 502, message: "Keine Verbindung zum KI-Dienst. Prüfe die Internetverbindung des Servers." };
   }
   if (error instanceof Anthropic.APIError) {
     const overloaded = error.status === 529 || error.status === 503;
     return {
       status: 502,
       message: overloaded
-        ? "Die Anthropic-API ist gerade überlastet. Bitte gleich noch einmal versuchen."
+        ? "Der KI-Dienst ist gerade überlastet. Bitte gleich noch einmal versuchen."
         : `API-Fehler (${error.status ?? "unbekannt"}): ${error.message}`,
     };
   }

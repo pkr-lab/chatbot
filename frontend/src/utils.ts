@@ -31,18 +31,6 @@ export const groupChats = (chats: Chat[], now = Date.now()): ChatGroup[] => {
   return buckets.filter((bucket) => bucket.items.length > 0);
 };
 
-export const modelLabel = (model: string | null): string => {
-  if (!model) return "";
-  const parts = model.replace(/^claude-/, "").split("-");
-  const name = parts[0] ?? "";
-  const version = parts
-    .slice(1)
-    .filter((part) => /^\d{1,2}$/.test(part))
-    .join(".");
-  const label = name.charAt(0).toUpperCase() + name.slice(1);
-  return `Claude ${label}${version ? ` ${version}` : ""}`;
-};
-
 export const formatTokens = (value: number | null): string => {
   if (value === null) return "";
   return value >= 1000 ? `${(value / 1000).toFixed(1).replace(".", ",")}k` : String(value);

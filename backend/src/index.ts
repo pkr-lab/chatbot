@@ -93,10 +93,9 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
 
 const server = app.listen(config.port, () => {
   console.log(`Chatbot läuft auf Port ${config.port}`);
-  console.log(`Modell: ${config.model} (effort ${config.effort}), Fallback: ${config.enableFallback ? "an" : "aus"}`);
-  console.log(`Gedächtnis: ${config.memoryDays} Tage, übergreifend: ${config.crossChatMemory ? "an" : "aus"}`);
+  console.log(`Modell: ${config.model} (Aufwand ${config.effort}), Fallback: ${config.enableFallback ? "an" : "aus"}`);
   if (!config.hasCredentials) {
-    console.warn("WARNUNG: ANTHROPIC_API_KEY ist nicht gesetzt. Antworten sind erst mit gültigem Schlüssel möglich.");
+    console.warn("WARNUNG: API_KEY ist nicht gesetzt. Antworten sind erst mit gültigem Schlüssel möglich.");
   }
 });
 

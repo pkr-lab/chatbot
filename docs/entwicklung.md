@@ -8,7 +8,7 @@ Node.js 22 oder neuer. Docker ist nur für das Image nötig.
 
 ```bash
 npm run install:all
-ANTHROPIC_API_KEY=sk-ant-... npm run dev:backend
+API_KEY=sk-ant-... npm run dev:backend
 npm run dev:frontend
 ```
 
@@ -25,7 +25,7 @@ Nach dem Build kann das Backend mit `PUBLIC_DIR=../frontend/dist node backend/di
 
 ## Test ohne echten Schlüssel
 
-`ANTHROPIC_BASE_URL` leitet das SDK auf einen beliebigen Server um. Für Tests eignet sich ein kleiner Mock, der das SSE-Format der Messages-API nachbildet (`message_start`, `content_block_start`, `content_block_delta`, `content_block_stop`, `message_delta`, `message_stop`) und für bestimmte Schlüssel `429` mit `retry-after` liefert. Damit lassen sich Streaming, Gedächtnis, Abbruch, Ablehnung, Kontowechsel und Rate-Limit-Header prüfen, ohne Kosten zu verursachen.
+`API_BASE_URL` leitet das SDK auf einen beliebigen Server um. Für Tests eignet sich ein kleiner Mock, der das SSE-Format der Messages-API nachbildet (`message_start`, `content_block_start`, `content_block_delta`, `content_block_stop`, `message_delta`, `message_stop`) und für bestimmte Schlüssel `429` mit `retry-after` liefert. Damit lassen sich Streaming, Gedächtnis, Abbruch, Ablehnung, Kontowechsel und Rate-Limit-Header prüfen, ohne Kosten zu verursachen.
 
 ## Konventionen
 

@@ -13,7 +13,6 @@ interface ChatViewProps {
   loading: boolean;
   remoteBusy: boolean;
   showThinking: boolean;
-  memoryDays: number;
   onRegenerate: () => void;
   onDismissError: () => void;
   onSuggestion: (text: string) => void;
@@ -43,7 +42,6 @@ export const ChatView = ({
   loading,
   remoteBusy,
   showThinking,
-  memoryDays,
   onRegenerate,
   onDismissError,
   onSuggestion,
@@ -92,9 +90,7 @@ export const ChatView = ({
           <section className="empty">
             <Logo height={52} />
             <h1>{greeting()}</h1>
-            <p>
-              Ich erinnere mich an deine Unterhaltungen der letzten {memoryDays === 1 ? "24 Stunden" : `${memoryDays} Tage`}.
-            </p>
+            <p>Ich merke mir den Verlauf jedes einzelnen Chats.</p>
             <div className="chips">
               {suggestions.map((text) => (
                 <button key={text} type="button" className="chip" onClick={() => onSuggestion(text)}>
@@ -118,11 +114,11 @@ export const ChatView = ({
         ))}
 
         {stream ? (
-          <article className="message assistant streaming" aria-label="Claude schreibt">
+          <article className="message assistant streaming" aria-label="Plaudi schreibt">
             {showThinking && stream.thinking ? (
               <Thinking key={stream.text ? "closed" : "open"} text={stream.thinking} open={!stream.text} />
             ) : null}
-            {stream.text ? <LazyMarkdown text={stream.text} /> : <Typing label={stream.thinking ? "Denkt nach…" : "Claude schreibt…"} />}
+            {stream.text ? <LazyMarkdown text={stream.text} /> : <Typing label={stream.thinking ? "Denkt nach…" : "Plaudi schreibt…"} />}
           </article>
         ) : null}
 

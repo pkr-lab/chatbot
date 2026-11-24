@@ -1,12 +1,12 @@
 # Plaudi: Dokumentation
 
-Selbst gehosteter Chatbot mit Claude-Anbindung, Chatverlauf und Gedächtnis der letzten Tage. Das Projekt besteht aus einem Node.js-Backend (Express, SQLite), einem React-Frontend und läuft als einzelner Docker-Container.
+Selbst gehosteter Chatbot mit KI-Anbindung, Chatverlauf je Chat. Das Projekt besteht aus einem Node.js-Backend (Express, SQLite), einem React-Frontend und läuft als einzelner Docker-Container.
 
 | Dokument | Inhalt |
 | --- | --- |
 | [architektur.md](architektur.md) | Überblick, Verzeichnisstruktur, Datenfluss einer Nachricht |
-| [claude-anbindung.md](claude-anbindung.md) | Wie die App mit Claude verbunden ist, Zugang, Parameter, Fehlerbehandlung, Kosten |
-| [gedaechtnis.md](gedaechtnis.md) | Funktionsweise des 3-Tage-Gedächtnisses und chatübergreifende Erinnerung |
+| [ki-anbindung.md](ki-anbindung.md) | Wie die App mit dem KI-Dienst verbunden ist, Zugang, Parameter, Fehlerbehandlung, Kosten |
+| [verlauf.md](verlauf.md) | Verlauf je Chat und Kontextbudget |
 | [api.md](api.md) | REST-Schnittstelle und Server-Sent-Events-Protokoll |
 | [backend.md](backend.md) | Module des Backends im Detail |
 | [frontend.md](frontend.md) | Aufbau des Frontends, Zustandsverwaltung, Streaming |
@@ -21,7 +21,7 @@ Selbst gehosteter Chatbot mit Claude-Anbindung, Chatverlauf und Gedächtnis der 
 cp .env.example .env
 ```
 
-In `.env` den `ANTHROPIC_API_KEY`, `ADMIN_EMAIL` und die Mail-Anbindung eintragen.
+In `.env` den `API_KEY`, `ADMIN_EMAIL` und die Mail-Anbindung eintragen.
 
 ```bash
 docker compose up -d --build
