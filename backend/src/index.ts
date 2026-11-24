@@ -3,6 +3,7 @@ import path from "node:path";
 import compression from "compression";
 import cookieParser from "cookie-parser";
 import express, { type NextFunction, type Request, type Response } from "express";
+import { claudeLoginRouter } from "./claude-login.js";
 import { adminRouter, authRouter, csrfGuard, initUsers, requireAdmin, requireAuth } from "./auth.js";
 import { config } from "./config.js";
 import { closeDb } from "./db.js";
@@ -41,6 +42,7 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api", csrfGuard);
 app.use("/api/auth", authRouter());
+app.use("/api/admin/claude", requireAuth, requireAdmin, claudeLoginRouter());
 app.use("/api/admin", requireAuth, requireAdmin, adminRouter());
 app.use("/api", requireAuth, apiRouter());
 
@@ -94,7 +96,9 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
 const server = app.listen(config.port, () => {
   console.log(`Chatbot läuft auf Port ${config.port}`);
   console.log(`Modell: ${config.model} (Aufwand ${config.effort}), Fallback: ${config.enableFallback ? "an" : "aus"}`);
-  if (!config.hasCredentials) {
+  if (config.backend === "subscription") {
+    console.log("Anbindung: Claude-Abo (Token unter Einstellungen oder CLAUDE_CODE_OAUTH_TOKEN)");
+  } else if (!config.hasCredentials) {
     console.warn("WARNUNG: API_KEY ist nicht gesetzt. Antworten sind erst mit gültigem Schlüssel möglich.");
   }
 });

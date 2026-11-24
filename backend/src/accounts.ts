@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "./config.js";
 import { getSetting, setSetting } from "./db.js";
+import { subscriptionView } from "./subscription.js";
 
 export interface LimitEntry {
   limit: number | null;
@@ -156,6 +157,7 @@ export const markFailure = (name: string, error: unknown): boolean => {
 };
 
 export const accountViews = (now = Date.now()): AccountView[] => {
+  if (config.backend === "subscription") return [subscriptionView(now)];
   const activeName = availableAccounts(now)[0]?.name;
   return states.map((state) => ({
     name: state.name,

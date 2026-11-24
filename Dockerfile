@@ -13,20 +13,22 @@ RUN apt-get update \
 COPY backend/package.json backend/package-lock.json ./
 RUN npm ci
 COPY backend/ ./
-RUN npm run build && npm prune --omit=dev
+RUN npm run build && npm prune --omit=dev \
+    && rm -rf node_modules/@anthropic-ai/claude-agent-sdk-linux-*-musl
 
 FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production \
     PORT=3000 \
     DATA_DIR=/data \
     PUBLIC_DIR=/app/public \
-    TZ=Europe/Berlin
+    TZ=Europe/Berlin \
+    TMPDIR=/tmp
 WORKDIR /app
 COPY --from=backend /build/backend/node_modules ./node_modules
 COPY --from=backend /build/backend/dist ./dist
 COPY --from=backend /build/backend/package.json ./package.json
 COPY --from=frontend /build/frontend/dist ./public
-RUN mkdir -p /data && chown -R node:node /data /app
+RUN mkdir -p /data && chown node:node /data
 USER node
 VOLUME ["/data"]
 EXPOSE 3000

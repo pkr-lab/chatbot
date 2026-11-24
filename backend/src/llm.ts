@@ -9,6 +9,12 @@ import {
   recordHeaders,
 } from "./accounts.js";
 import type { HistoryMessage, SystemBlock } from "./prompt.js";
+import {
+  AbortedError,
+  SubscriptionError,
+  streamViaSubscription,
+  subscriptionAvailableAt,
+} from "./subscription.js";
 
 export interface StreamResult {
   text: string;
@@ -98,7 +104,17 @@ const attempt = async (
   }
 };
 
+const streamSubscription = async (input: StreamInput): Promise<StreamResult> => {
+  try {
+    return await streamViaSubscription(input);
+  } catch (error) {
+    if (error instanceof AbortedError) throw new StreamAbortedError(error.partial, { cause: error });
+    throw error;
+  }
+};
+
 export const streamReply = async (input: StreamInput): Promise<StreamResult> => {
+  if (config.backend === "subscription") return streamSubscription(input);
   const accounts = availableAccounts();
   if (accounts.length === 0) throw new AllAccountsExhaustedError(earliestAvailability());
   const progress = { started: false };
@@ -129,6 +145,7 @@ const fallbackTitle = (text: string): string => {
 export const initialTitle = fallbackTitle;
 
 export const generateTitle = async (userText: string, assistantText: string): Promise<string> => {
+  if (config.backend === "subscription") return fallbackTitle(userText);
   try {
     const response = await primaryClient().messages.create({
       model: config.titleModel,
@@ -158,6 +175,16 @@ export const generateTitle = async (userText: string, assistantText: string): Pr
 };
 
 export const describeError = (error: unknown): { status: number; message: string } => {
+  if (error instanceof SubscriptionError) {
+    if (error.kind === "limited") {
+      const at = error.until ?? subscriptionAvailableAt();
+      const time = at
+        ? new Intl.DateTimeFormat("de-DE", { timeZone: config.timezone, hour: "2-digit", minute: "2-digit" }).format(at)
+        : null;
+      return { status: 429, message: `${error.message}${time ? ` Wieder verfügbar ab ${time} Uhr.` : ""}` };
+    }
+    return { status: error.kind === "failed" ? 502 : 503, message: error.message };
+  }
   if (error instanceof AllAccountsExhaustedError) {
     const time = error.until
       ? new Intl.DateTimeFormat("de-DE", { timeZone: config.timezone, hour: "2-digit", minute: "2-digit" }).format(error.until)
@@ -200,6 +227,7 @@ export const describeError = (error: unknown): { status: number; message: string
 let windowCache: number | null = null;
 
 export const getContextWindow = async (): Promise<number> => {
+  if (config.backend === "subscription") return 1000000;
   if (windowCache) return windowCache;
   try {
     const info = await primaryClient().models.retrieve(config.model);

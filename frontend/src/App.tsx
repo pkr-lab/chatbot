@@ -90,7 +90,11 @@ const Shell = ({ initial, onLoggedOut }: ShellProps) => {
 
         {!config.apiConfigured ? (
           <div className="banner error top" role="alert">
-            <p>Auf dem Server ist kein API_KEY gesetzt. Plaudi kann so nicht antworten.</p>
+            <p>
+              {config.backend === "subscription"
+                ? "Claude ist noch nicht verbunden. Ein Administrator trägt das Token unter Einstellungen ein."
+                : "Auf dem Server ist kein API_KEY gesetzt. Plaudi kann so nicht antworten."}
+            </p>
           </div>
         ) : null}
 

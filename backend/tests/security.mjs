@@ -147,7 +147,7 @@ const run = async () => {
 
   console.log("\n== Zugriff ohne Anmeldung ==");
   const anon = fresh();
-  for (const [method, url] of [["GET", "/api/bootstrap"], ["GET", "/api/chats"], ["POST", "/api/chats"], ["GET", "/api/usage"], ["GET", "/api/admin/users"], ["POST", "/api/admin/users/1/reset-password"], ["POST", "/api/admin/users/1/unlock"], ["POST", "/api/auth/password"]]) {
+  for (const [method, url] of [["GET", "/api/bootstrap"], ["GET", "/api/chats"], ["POST", "/api/chats"], ["GET", "/api/usage"], ["GET", "/api/admin/users"], ["GET", "/api/admin/claude"], ["PUT", "/api/admin/claude"], ["DELETE", "/api/admin/claude"], ["POST", "/api/admin/users/1/reset-password"], ["POST", "/api/admin/users/1/unlock"], ["POST", "/api/auth/password"]]) {
     const r = await anon.call(method, url, method === "POST" ? {} : undefined);
     check(`${method} ${url} ohne Login -> 401`, r.status === 401, String(r.status));
   }
@@ -205,6 +205,13 @@ const run = async () => {
   const uLogin = await fullLogin(u, "nutzer@example.com", USER_PW);
   check("Neuer Benutzer kann sich mit Passwort und Code anmelden", uLogin.status === 200 && uLogin.data.user.role === "user", JSON.stringify(uLogin.data));
   check("Normaler Benutzer: Admin-Routen -> 403", (await u.call("GET", "/api/admin/users")).status === 403 && (await u.call("POST", "/api/admin/users/1/reset-password")).status === 403);
+  check("Normaler Benutzer: Claude-Anmeldung -> 403", (await u.call("GET", "/api/admin/claude")).status === 403 && (await u.call("PUT", "/api/admin/claude", { token: "sk-ant-" + "x".repeat(40) })).status === 403 && (await u.call("DELETE", "/api/admin/claude")).status === 403);
+  const claudeState = await a.call("GET", "/api/admin/claude");
+  check("Admin: Claude-Status ohne Token, nichts Geheimes in der Antwort", claudeState.status === 200 && claudeState.data.connected === false && !JSON.stringify(claudeState.data).includes("sk-ant"));
+  const badToken = await a.call("PUT", "/api/admin/claude", { token: "kein-token" });
+  const noToken = await a.call("PUT", "/api/admin/claude", {});
+  check("Admin: Claude-Token im API-Modus abgelehnt (409)", badToken.status === 409 && noToken.status === 409, `${badToken.status} ${JSON.stringify(badToken.data)} / ${noToken.status}`);
+  check("Claude-Token wird nicht als Klartext erwartet im Konfig-Endpunkt", !JSON.stringify((await a.call("GET", "/api/config")).data).includes("token"));
 
   console.log("\n== Trennung der Daten ==");
   const adminChat = (await a.call("POST", "/api/chats")).data;

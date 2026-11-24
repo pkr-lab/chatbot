@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { api } from "../api";
 import type { AppConfig, AuthUser, ManagedUser, Settings } from "../types";
+import { ClaudeLogin } from "./ClaudeLogin";
 import { Icon } from "./Icon";
 import { PasswordField } from "./PasswordField";
 
@@ -177,7 +178,11 @@ export const SettingsDialog = ({ user, settings, config, onSave, onClose }: Sett
         <div className="modal-body">
           {!config.apiConfigured ? (
             <div className="banner error" role="alert">
-              <p>Auf dem Server ist kein API_KEY gesetzt. Ohne Schlüssel kann Plaudi nicht antworten.</p>
+              <p>
+                {config.backend === "subscription"
+                  ? "Claude ist noch nicht verbunden. Ein Administrator muss unter Einstellungen ein Token eintragen."
+                  : "Auf dem Server ist kein API_KEY gesetzt. Ohne Schlüssel kann Plaudi nicht antworten."}
+              </p>
             </div>
           ) : null}
 
@@ -196,6 +201,8 @@ export const SettingsDialog = ({ user, settings, config, onSave, onClose }: Sett
               {instructions.length} / {MAX_INSTRUCTIONS}
             </div>
           </section>
+
+          {user.role === "admin" && config.backend === "subscription" ? <ClaudeLogin /> : null}
 
           {user.role === "admin" ? (
             <section>

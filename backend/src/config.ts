@@ -73,6 +73,14 @@ const readAccounts = (): AccountConfig[] => {
   return accounts;
 };
 
+const requestedBackend = read("AI_BACKEND")?.toLowerCase();
+const backend: "api" | "subscription" =
+  requestedBackend === "api" || requestedBackend === "subscription"
+    ? requestedBackend
+    : readAccounts().length > 0
+      ? "api"
+      : "subscription";
+
 const model = read("AI_MODEL") ?? "claude-opus-5-5";
 const fallbackModels = ["claude-opus-5-5", "claude-opus-5", "claude-fable-5", "claude-sonnet-5-5"];
 const fallbackSetting = read("ENABLE_FALLBACK")?.toLowerCase() ?? "auto";
@@ -81,9 +89,11 @@ export const config = {
   port: readInt("PORT", 3000),
   dataDir: path.resolve(read("DATA_DIR") ?? "./data"),
   publicDir: path.resolve(read("PUBLIC_DIR") ?? "./public"),
+  backend,
+  claudeToken: read("CLAUDE_CODE_OAUTH_TOKEN"),
   accounts: readAccounts(),
   apiBaseUrl: read("API_BASE_URL"),
-  hasCredentials: readAccounts().length > 0,
+  hasCredentials: backend === "subscription" || readAccounts().length > 0,
   model,
   effort: readEffort(),
   maxTokens: readInt("MAX_TOKENS", 64000),
