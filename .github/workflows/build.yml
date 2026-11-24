@@ -1,0 +1,88 @@
+name: Build Plaudi
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: typecheck und Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Abhängigkeiten installieren
+        run: |
+          npm --prefix backend ci
+          npm --prefix frontend ci
+
+      - name: Typecheck und Build
+        run: |
+          npm run typecheck
+          npm run build
+
+      - name: Sicherheits- und Sitzungstests
+        working-directory: backend
+        run: |
+          node tests/security.mjs
+          node tests/session-expiry.mjs
+
+  image:
+    name: Image bauen
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Image-Tag bestimmen
+        id: tag
+        run: echo "tag=sha-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Bei GHCR anmelden
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bauen und pushen
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ghcr.io/pkr-lab/plaudi:${{ steps.tag.outputs.tag }}
+
+      - name: Neuen Tag melden
+        if: github.event_name != 'pull_request'
+        run: |
+          {
+            echo "### Plaudi: neues Image gepusht"
+            echo
+            echo '```'
+            echo "ghcr.io/pkr-lab/plaudi:${{ steps.tag.outputs.tag }}"
+            echo '```'
+            echo
+            echo "In capulus-core \`argocd/apps/prod/plaudi/values.yaml\` unter \`image.tag\` eintragen."
+          } >> "$GITHUB_STEP_SUMMARY"
